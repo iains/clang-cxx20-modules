@@ -6,6 +6,7 @@ set(LLVM_LINK_COMPONENTS
   Option
   ProfileData
   Support
+  cody
   )
 
 add_clang_library(clangFrontend
@@ -29,6 +30,8 @@ add_clang_library(clangFrontend
   LayoutOverrideSource.cpp
   LogDiagnosticPrinter.cpp
   ModuleDependencyCollector.cpp
+  ModuleMapperClient.cpp
+  ModuleMapperResolver.cpp
   MultiplexConsumer.cpp
   PrecompiledPreamble.cpp
   PrintPreprocessedOutput.cpp
