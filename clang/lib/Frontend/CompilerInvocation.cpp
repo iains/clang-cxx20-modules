@@ -3731,6 +3731,7 @@ static void ParsePreprocessorOutputArgs(PreprocessorOutputOptions &Opts,
   Opts.RewriteIncludes = Args.hasArg(OPT_frewrite_includes);
   Opts.RewriteImports = Args.hasArg(OPT_frewrite_imports);
   Opts.UseLineDirectives = Args.hasArg(OPT_fuse_line_directives);
+  Opts.DirectivesOnly = Args.hasArg(OPT_fdirectives_only);
 }
 
 static void ParseTargetArgs(TargetOptions &Opts, ArgList &Args,
