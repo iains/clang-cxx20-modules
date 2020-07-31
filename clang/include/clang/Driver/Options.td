@@ -1247,6 +1247,7 @@ def fno_for_scope : Flag<["-"], "fno-for-scope">, Group<f_Group>;
 
 defm rewrite_imports : OptInFFlag<"rewrite-imports", "">;
 defm rewrite_includes : OptInFFlag<"rewrite-includes", "">;
+defm directives_only : OptInFFlag<"directives-only", "">;
 
 defm delete_null_pointer_checks : OptOutFFlag<"delete-null-pointer-checks",
   "Treat usage of null pointers as undefined behavior (default)",
