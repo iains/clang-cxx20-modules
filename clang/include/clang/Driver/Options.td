@@ -1660,6 +1660,8 @@ defm rewrite_includes : BoolFOption<"rewrite-includes",
   PreprocessorOutputOpts<"RewriteIncludes">, DefaultsToFalse,
   ChangedBy<PosFlag, [CC1Option]>, ResetBy<NegFlag>>;
 
+defm directives_only : OptInFFlag<"directives-only", "">;
+
 defm delete_null_pointer_checks : BoolFOption<"delete-null-pointer-checks",
   CodeGenOpts<"NullPointerIsValid">, DefaultsToFalse,
   ChangedBy<NegFlag, [CC1Option], "Do not treat usage of null pointers as undefined behavior">,
