@@ -95,14 +95,15 @@ private:
   bool DumpIncludeDirectives;
   bool UseLineDirectives;
   bool IsFirstFileEntered;
+  bool DirectivesOnly;
 public:
   PrintPPOutputPPCallbacks(Preprocessor &pp, raw_ostream &os, bool lineMarkers,
                            bool defines, bool DumpIncludeDirectives,
-                           bool UseLineDirectives)
+                           bool UseLineDirectives, bool DirectivesOnly)
       : PP(pp), SM(PP.getSourceManager()), ConcatInfo(PP), OS(os),
         DisableLineMarkers(lineMarkers), DumpDefines(defines),
         DumpIncludeDirectives(DumpIncludeDirectives),
-        UseLineDirectives(UseLineDirectives) {
+        UseLineDirectives(UseLineDirectives), DirectivesOnly(DirectivesOnly) {
     CurLine = 0;
     CurFilename += "<uninit>";
     EmittedTokensOnThisLine = false;
@@ -410,7 +411,7 @@ void PrintPPOutputPPCallbacks::MacroDefined(const Token &MacroNameTok,
                                             const MacroDirective *MD) {
   const MacroInfo *MI = MD->getMacroInfo();
   // Only print out macro definitions in -dD mode.
-  if (!DumpDefines ||
+  if ((!DumpDefines && !DirectivesOnly) ||
       // Ignore __FILE__ etc.
       MI->isBuiltinMacro()) return;
 
@@ -870,7 +871,7 @@ void clang::DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
 
   PrintPPOutputPPCallbacks *Callbacks = new PrintPPOutputPPCallbacks(
       PP, *OS, !Opts.ShowLineMarkers, Opts.ShowMacros,
-      Opts.ShowIncludeDirectives, Opts.UseLineDirectives);
+      Opts.ShowIncludeDirectives, Opts.UseLineDirectives, Opts.DirectivesOnly);
 
   // Expand macros in pragmas with -fms-extensions.  The assumption is that
   // the majority of pragmas in such a file will be Microsoft pragmas.
@@ -906,6 +907,8 @@ void clang::DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
 
   // After we have configured the preprocessor, enter the main file.
   PP.EnterMainSourceFile();
+  if (Opts.DirectivesOnly)
+    PP.SetMacroExpansionOnlyInDirectives();
 
   // Consume all of the tokens that come from the predefines buffer.  Those
   // should not be emitted into the output and are guaranteed to be at the
