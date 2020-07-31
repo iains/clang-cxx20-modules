@@ -2892,6 +2892,8 @@ static void ParsePreprocessorOutputArgs(PreprocessorOutputOptions &Opts,
     Opts.ShowCPP = 0;
 
   Opts.ShowMacros = Args.hasArg(OPT_dM) || Args.hasArg(OPT_dD);
+
+  Opts.DirectivesOnly = Args.hasArg(OPT_fdirectives_only);
 }
 
 static void ParseTargetArgs(TargetOptions &Opts, ArgList &Args,
