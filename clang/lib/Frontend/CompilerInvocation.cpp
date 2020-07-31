@@ -4425,6 +4425,7 @@ static bool ParsePreprocessorOutputArgsImpl(PreprocessorOutputOptions &Opts,
 
   Opts.ShowCPP = isStrictlyPreprocessorAction(Action) && !Args.hasArg(OPT_dM);
   Opts.ShowMacros = Args.hasArg(OPT_dM) || Args.hasArg(OPT_dD);
+  Opts.DirectivesOnly = Args.hasArg(OPT_fdirectives_only);
 
   return Success && Diags.getNumErrors() == NumErrorsBefore;
 }
