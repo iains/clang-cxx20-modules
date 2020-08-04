@@ -250,6 +250,12 @@ public:
   void AddPrebuiltModulePath(StringRef Name) {
     PrebuiltModulePaths.push_back(std::string(Name));
   }
+
+  void PrintPrebuiltModulePaths () const {
+    for (unsigned i = 0, e = PrebuiltModulePaths.size(); i != e; ++i) {
+      llvm::errs() << " " << PrebuiltModulePaths[i] << "\n";
+    }
+  }
 };
 
 inline llvm::hash_code hash_value(const HeaderSearchOptions::Entry &E) {
