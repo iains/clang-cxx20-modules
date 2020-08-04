@@ -105,7 +105,7 @@ public:
 
   /// Realize - Merges all search path lists into one list and send it to
   /// HeaderSearch.
-  void Realize(const LangOptions &Lang);
+  void Realize(const LangOptions &Lang, const HeaderSearchOptions &HSOpts);
 };
 
 }  // end anonymous namespace.
@@ -555,7 +555,8 @@ static unsigned RemoveDuplicates(std::vector<DirectoryLookup> &SearchList,
 }
 
 
-void InitHeaderSearch::Realize(const LangOptions &Lang) {
+void InitHeaderSearch::Realize(const LangOptions &Lang,
+                               const HeaderSearchOptions &HSOpts) {
   // Concatenate ANGLE+SYSTEM+AFTER chains together into SearchList.
   std::vector<DirectoryLookup> SearchList;
   SearchList.reserve(IncludePath.size());
@@ -618,6 +619,8 @@ void InitHeaderSearch::Realize(const LangOptions &Lang) {
       }
       llvm::errs() << " " << Name << Suffix << "\n";
     }
+    llvm::errs() << "prebuilt module search starts here:\n";
+    HSOpts.PrintPrebuiltModulePaths ();
     llvm::errs() << "End of search list.\n";
   }
 }
@@ -652,5 +655,5 @@ void clang::ApplyHeaderSearchOptions(HeaderSearch &HS,
       HS.getModuleMap().setBuiltinIncludeDir(*Dir);
   }
 
-  Init.Realize(Lang);
+  Init.Realize(Lang, HSOpts);
 }
