@@ -1796,6 +1796,7 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
   }
 
   InputKind DashX(Language::Unknown);
+  bool IKIsSystemHeader = false;
   if (const Arg *A = Args.getLastArg(OPT_x)) {
     StringRef XValue = A->getValue();
 
@@ -1807,6 +1808,12 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
                    XValue != "precompiled-header" &&
                    XValue.consume_back("-header");
 
+    bool IsPreprocessedHeader = Preprocessed && XValue.consume_back("-header");
+    // The user or system designation applies to both original source and the
+    // preprocessed output from those.
+    XValue.consume_back("-user");
+    IKIsSystemHeader = (IsHeaderFile || IsPreprocessedHeader) &&
+                       XValue.consume_back("-system");
     // Principal languages.
     DashX = llvm::StringSwitch<InputKind>(XValue)
                 .Case("c", Language::C)
@@ -1828,7 +1835,8 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
                   .Default(Language::Unknown);
 
     // Some special cases cannot be combined with suffixes.
-    if (DashX.isUnknown() && !Preprocessed && !ModuleMap && !IsHeaderFile)
+    if (DashX.isUnknown() && !Preprocessed && !ModuleMap &&
+        !IsHeaderFile && !IsPreprocessedHeader)
       DashX = llvm::StringSwitch<InputKind>(XValue)
                   .Case("cpp-output", InputKind(Language::C).getPreprocessed())
                   .Case("assembler-with-cpp", Language::Asm)
@@ -1843,6 +1851,8 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
 
     if (Preprocessed)
       DashX = DashX.getPreprocessed();
+    if (IsHeaderFile)
+      DashX = DashX.getHeader();
     if (ModuleMap)
       DashX = DashX.withFormat(InputKind::ModuleMap);
   }
@@ -1874,7 +1884,7 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
       IsSystem = Opts.IsSystemModule;
     }
 
-    Opts.Inputs.emplace_back(std::move(Inputs[i]), IK, IsSystem);
+    Opts.Inputs.emplace_back(std::move(Inputs[i]), IK, IsSystem || IKIsSystemHeader);
   }
 
   return DashX;
