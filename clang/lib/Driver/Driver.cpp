@@ -299,7 +299,8 @@ phases::ID Driver::getFinalPhase(const DerivedArgList &DAL,
     FinalPhase = phases::Preprocess;
 
   // --precompile only runs up to precompilation.
-  } else if ((PhaseArg = DAL.getLastArg(options::OPT__precompile))) {
+  } else if ((PhaseArg = DAL.getLastArg(options::OPT__precompile)) ||
+             (PhaseArg = DAL.getLastArg(options::OPT_fmodule_only))) {
     FinalPhase = phases::Precompile;
 
   // -{fsyntax-only,-analyze,emit-ast} only run up to the compiler.
