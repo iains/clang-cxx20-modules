@@ -2176,6 +2176,10 @@ def fretain_comments_from_system_headers : Flag<["-"], "fretain-comments-from-sy
 // GCC compatibility
 def fmodule_only : Flag <["-"], "fmodule-only">, Group<f_Group>,
   Flags<[NoXarchOption]>;
+def fmodule_header : Flag <["-"], "fmodule-header">, Group<f_Group>,
+  Flags<[NoXarchOption]>;
+def fmodule_header_EQ : Joined<["-"], "fmodule-header=">, Group<f_Group>,
+  Flags<[NoXarchOption]>, MetaVarName<"<kind>">;
 
 def fmudflapth : Flag<["-"], "fmudflapth">, Group<f_Group>;
 def fmudflap : Flag<["-"], "fmudflap">, Group<f_Group>;
