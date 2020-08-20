@@ -133,7 +133,8 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
                DiagnosticsEngine &Diags, std::string Title,
                IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS)
     : Diags(Diags), VFS(std::move(VFS)), Mode(GCCMode),
-      SaveTemps(SaveTempsNone), BitcodeEmbed(EmbedNone), LTOMode(LTOK_None),
+      SaveTemps(SaveTempsNone), BitcodeEmbed(EmbedNone),
+      ModuleHeaderModeSet(HeaderMode_None), LTOMode(LTOK_None),
       ClangExecutable(ClangExecutable), SysRoot(DEFAULT_SYSROOT),
       DriverTitle(Title), CCPrintStatReportFilename(), CCPrintOptionsFilename(),
       CCPrintHeadersFilename(), CCLogDiagnosticsFilename(),
@@ -1166,6 +1167,33 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
                                                 << Name;
     } else
       BitcodeEmbed = static_cast<BitcodeEmbedMode>(Model);
+  }
+
+  // Setting up the jobs for some precompile cases depends on whether we are
+  // treating them as PCH, implicit modules or C++20 ones.
+  const Arg *Std = Args.getLastArg(options::OPT_std_EQ);
+  MaybeCXX20ModuleMode =
+      Std && (Std->containsValue("c++2a") || Std->containsValue("c++20") ||
+              Std->containsValue("c++latest"));
+  MaybeCXX20ModuleMode |= Args.hasArg(options::OPT_fmodules_ts);
+
+  // Process -fmodule-header{=} flags.
+  if (Arg *A = Args.getLastArg(options::OPT_fmodule_header_EQ,
+                               options::OPT_fmodule_header)) {
+    if (A->getOption().matches(options::OPT_fmodule_header))
+      ModuleHeaderModeSet = HeaderMode_Default;
+    else {
+      StringRef ArgName = A->getValue();
+      unsigned Kind = llvm::StringSwitch<unsigned>(ArgName)
+        .Case("user", HeaderMode_User)
+        .Case("system", HeaderMode_System)
+        .Default(~0U);
+      if (Kind == ~0U) {
+        Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args)
+                                                << ArgName;
+      } else
+        ModuleHeaderModeSet = static_cast<ModuleHeaderMode>(Kind);
+    }
   }
 
   std::unique_ptr<llvm::opt::InputArgList> UArgs =
@@ -2203,6 +2231,8 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
     assert(!Args.hasArg(options::OPT_x) && "-x and /TC or /TP is not allowed");
   }
 
+  bool HasHeaderSearchPath = ModuleHeaderModeSet == HeaderMode_User ||
+                             ModuleHeaderModeSet == HeaderMode_System;
   for (Arg *A : Args) {
     if (A->getOption().getKind() == Option::InputClass) {
       const char *Value = A->getValue();
@@ -2277,6 +2307,13 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
           else if (Args.hasArg(options::OPT_ObjCXX))
             Ty = types::TY_ObjCXX;
         }
+
+        // If the user has put -fmodule-header={user, system} then we need
+        // to defer complaints about existence until the search is executed
+        // in the preprocessor.
+        if (HasHeaderSearchPath && Ty == types::TY_CXXHeader)
+          Ty = ModuleHeaderModeSet == HeaderMode_User ? types::TY_CXXUHeader
+                                                      : types::TY_CXXSHeader;
       } else {
         assert(InputTypeArg && "InputType set w/o InputTypeArg");
         if (!InputTypeArg->getOption().matches(options::OPT_x)) {
