@@ -1,4 +1,21 @@
-# The LLVM Compiler Infrastructure
+# C++20 modules experimental branches
+
+Here is work towards adding missing features to complete the C++20
+modules functionality in the clang/LLVM frameworks.
+
+This repository contains a main branch which will be frequently
+rebased.  It will also have some retained branches representing
+previous rebase points.
+
+You should expect:
+
+ * the branch to be rebased
+ * patches to be merged, split, deleted or renamed.
+ 
+ * non-trivial rebases to have a branch representing the "before" state.
+
+
+# README for the The LLVM Compiler Infrastructure
 
 This directory and its sub-directories contain source code for LLVM,
 a toolkit for the construction of highly optimized compilers,
