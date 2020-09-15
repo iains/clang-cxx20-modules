@@ -852,12 +852,16 @@ bool CompilerInstance::InitializeSourceManager(const FrontendInputFile &Input,
   // Figure out where to get and map in the main file.
   Optional<FileEntryRef> FE;
   if (InputFile != "-") {
-    if (Input.isHeader() && !Input.isPreprocessed() && Preproc) {
+    InputKind::HeaderUnitKind HUK = Input.getHeaderUnit();
+    if (Preproc && !Input.isPreprocessed() &&
+        (HUK == InputKind::HeaderUnit_User ||
+         HUK == InputKind::HeaderUnit_System)) {
       HeaderSearch& HS = Preproc->getHeaderSearchInfo();
       const DirectoryLookup *CurDir = nullptr;
       FE = HS.LookupFile(
-        InputFile, SourceLocation(), /*Angled*/ Input.isSystem(), nullptr, CurDir,
-        None, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+        InputFile, SourceLocation(),
+        /*Angled*/ HUK == InputKind::HeaderUnit_System, nullptr, CurDir, None,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
         if (!FE) {
           Diags.Report(diag::err_module_header_file_not_found)
             << InputFile;
