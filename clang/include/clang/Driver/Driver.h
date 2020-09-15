@@ -92,10 +92,12 @@ class Driver {
     EmbedBitcode
   } BitcodeEmbed;
 
-  ///  Header unit mode set by -fmodule-header={user,system}.
+  /// Header unit mode set by -fmodule-header={user,system}.
   ModuleHeaderMode ModuleHeaderModeSet;
 
-
+  /// Set if we should process inputs and jobs with C++20 module
+  /// interpretation.
+  bool MaybeCXX20ModuleMode;
 
   /// LTO mode selected via -f(no-)?lto(=.*)? options.
   LTOKind LTOMode;

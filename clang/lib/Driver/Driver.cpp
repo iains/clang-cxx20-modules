@@ -1145,6 +1145,14 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
       BitcodeEmbed = static_cast<BitcodeEmbedMode>(Model);
   }
 
+  // Setting up the jobs for some precompile cases depends on whether we are
+  // treating them as PCH, implicit modules or C++20 ones.
+  const Arg *Std = Args.getLastArg(options::OPT_std_EQ);
+  MaybeCXX20ModuleMode =
+      Std && (Std->containsValue("c++2a") || Std->containsValue("c++20") ||
+              Std->containsValue("c++latest"));
+  MaybeCXX20ModuleMode |= Args.hasArg(options::OPT_fmodules_ts);
+
   // Process -fmodule-header{=} flags.
   if (Arg *A = Args.getLastArg(options::OPT_fmodule_header_EQ,
                                options::OPT_fmodule_header)) {
@@ -2181,6 +2189,8 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
     assert(!Args.hasArg(options::OPT_x) && "-x and /TC or /TP is not allowed");
   }
 
+  bool HasHeaderSearchPath = ModuleHeaderModeSet == HeaderMode_User ||
+                             ModuleHeaderModeSet == HeaderMode_System;
   for (Arg *A : Args) {
     if (A->getOption().getKind() == Option::InputClass) {
       const char *Value = A->getValue();
@@ -2250,6 +2260,13 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
           else if (Args.hasArg(options::OPT_ObjCXX))
             Ty = types::TY_ObjCXX;
         }
+
+        // If the user has put -fmodule-header={user, system} then we need
+        // to defer complaints about existence until the search is executed
+        // in the preprocessor.
+        if (HasHeaderSearchPath && Ty == types::TY_CXXHeader)
+          Ty = ModuleHeaderModeSet == HeaderMode_User ? types::TY_CXXUHeader
+                                                      : types::TY_CXXSHeader;
       } else {
         assert(InputTypeArg && "InputType set w/o InputTypeArg");
         if (!InputTypeArg->getOption().matches(options::OPT_x)) {
