@@ -854,12 +854,15 @@ bool CompilerInstance::InitializeSourceManager(const FrontendInputFile &Input,
   FileEntryRef File = nullptr;
   // If the main file is a header, allow that it may be found in the user
   // or system search paths, if that is enabled.
-  if (Input.isHeader() && !Input.isPreprocessed() && Preproc) {
+  if (Preproc && !Input.isPreprocessed() &&
+      (HUK == InputKind::HeaderUnit_User ||
+       HUK == InputKind::HeaderUnit_System)) {
     HeaderSearch& HS = Preproc->getHeaderSearchInfo();
     const DirectoryLookup *CurDir = nullptr;
     auto FE = HS.LookupFile(
-      InputFile, SourceLocation(), /*Angled*/ Input.isSystem(), nullptr,
-      CurDir, None, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+        InputFile, SourceLocation(),
+        /*Angled*/ HUK == InputKind::HeaderUnit_System, nullptr, CurDir, None,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     if (!FE) {
       Diags.Report(diag::err_module_header_file_not_found) << InputFile;
       return false;
