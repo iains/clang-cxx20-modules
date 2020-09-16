@@ -172,7 +172,7 @@ bool types::isCXX(ID Id) {
   case TY_CXX: case TY_PP_CXX:
   case TY_ObjCXX: case TY_PP_ObjCXX: case TY_PP_ObjCXX_Alias:
   case TY_CXXHeader: case TY_PP_CXXHeader:
-  case TY_CXXSHeader: case TY_CXXUHeader:
+  case TY_CXXSHeader: case TY_CXXUHeader: case TY_CXXHUHeader:
   case TY_PP_CXXHeaderUnit:
   case TY_ObjCXXHeader: case TY_PP_ObjCXXHeader:
   case TY_CXXModule: case TY_PP_CXXModule:
@@ -341,7 +341,12 @@ types::getCompilationPhases(const clang::driver::Driver &Driver,
 
   // --precompile only runs up to precompilation.
   // This is a clang extension and is not compatible with GCC.
-  else if (DAL.getLastArg(options::OPT__precompile))
+  // fmodule-header* which indicates a header unit and fmodule-only
+  // have the same effect (completion after production of a CMI).
+  else if (DAL.getLastArg(options::OPT__precompile) ||
+           DAL.getLastArg(options::OPT_fmodule_only) ||
+           DAL.getLastArg(options::OPT_fmodule_header,
+                          options::OPT_fmodule_header_EQ))
     LastPhase = phases::Precompile;
 
   // -{fsyntax-only,-analyze,emit-ast} only run up to the compiler.
