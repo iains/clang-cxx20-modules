@@ -2234,8 +2234,7 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
     assert(!Args.hasArg(options::OPT_x) && "-x and /TC or /TP is not allowed");
   }
 
-  bool HasHeaderSearchPath = ModuleHeaderModeSet == HeaderMode_User ||
-                             ModuleHeaderModeSet == HeaderMode_System;
+  bool HasHeaderUnitInfo = ModuleHeaderModeSet != HeaderMode_None;
   for (Arg *A : Args) {
     if (A->getOption().getKind() == Option::InputClass) {
       const char *Value = A->getValue();
@@ -2314,9 +2313,18 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
         // If the user has put -fmodule-header={user, system} then we need
         // to defer complaints about existence until the search is executed
         // in the preprocessor.
-        if (HasHeaderSearchPath && Ty == types::TY_CXXHeader)
-          Ty = ModuleHeaderModeSet == HeaderMode_User ? types::TY_CXXUHeader
-                                                      : types::TY_CXXSHeader;
+        // Disambiguate headers that are meant to be header units from those
+        // intended to be precompiled.
+        if ((HasHeaderUnitInfo || MaybeCXX20ModuleMode) &&
+            Ty == types::TY_CXXHeader)
+          {
+            switch (ModuleHeaderModeSet) {
+              case HeaderMode_User: Ty = types::TY_CXXUHeader; break;
+              case HeaderMode_System: Ty = types::TY_CXXSHeader; break;
+              case HeaderMode_Default:
+              default: Ty = types::TY_CXXHUHeader; break;
+             }
+          }
       } else {
         assert(InputTypeArg && "InputType set w/o InputTypeArg");
         if (!InputTypeArg->getOption().matches(options::OPT_x)) {
@@ -2368,6 +2376,20 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
         Diag(clang::diag::err_drv_unknown_language) << A->getValue();
         InputType = types::TY_Object;
       }
+      // If the user has put -fmodule-header={user, system} then we need
+      // to defer complaints about existence until the search is executed
+      // in the preprocessor. Additionally, disambiguate headers that are
+      // meant to be header units from those intended to be precompiled.
+      if ((HasHeaderUnitInfo || MaybeCXX20ModuleMode) &&
+          InputType == types::TY_CXXHeader)
+        {
+          switch (ModuleHeaderModeSet) {
+            case HeaderMode_User: InputType = types::TY_CXXUHeader; break;
+            case HeaderMode_System: InputType = types::TY_CXXSHeader; break;
+            case HeaderMode_Default:
+            default: InputType = types::TY_CXXHUHeader; break;
+          }
+        }
     } else if (A->getOption().getID() == options::OPT_U) {
       assert(A->getNumValues() == 1 && "The /U option has one value.");
       StringRef Val = A->getValue(0);
