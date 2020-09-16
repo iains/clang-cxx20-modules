@@ -134,7 +134,7 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
                IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS)
     : Diags(Diags), VFS(std::move(VFS)), Mode(GCCMode),
       SaveTemps(SaveTempsNone), BitcodeEmbed(EmbedNone),
-      ModuleHeaderModeSet(HeaderMode_None), LTOMode(LTOK_None),
+      ModuleHeaderModeSet(HeaderMode_None), MaybeCXX20ModuleMode (false), LTOMode(LTOK_None),
       ClangExecutable(ClangExecutable), SysRoot(DEFAULT_SYSROOT),
       DriverTitle(Title), CCPrintStatReportFilename(), CCPrintOptionsFilename(),
       CCPrintHeadersFilename(), CCLogDiagnosticsFilename(),
@@ -300,8 +300,12 @@ phases::ID Driver::getFinalPhase(const DerivedArgList &DAL,
     FinalPhase = phases::Preprocess;
 
   // --precompile only runs up to precompilation.
+  // Options that cause the output of C++20 compiled module interfaces or
+  // header units have the same effect.
   } else if ((PhaseArg = DAL.getLastArg(options::OPT__precompile)) ||
-             (PhaseArg = DAL.getLastArg(options::OPT_fmodule_only))) {
+             (PhaseArg = DAL.getLastArg(options::OPT_fmodule_only)) ||
+             (PhaseArg = DAL.getLastArg(options::OPT_fmodule_header,
+                                        options::OPT_fmodule_header_EQ))) {
     FinalPhase = phases::Precompile;
 
   // -{fsyntax-only,-analyze,emit-ast} only run up to the compiler.
@@ -1204,16 +1208,27 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
 
   // Setting up the jobs for some precompile cases depends on whether we are
   // treating them as PCH, implicit modules or C++20 ones.
-  const Arg *Std = Args.getLastArg(options::OPT_std_EQ);
+  bool HasFModules = Args.hasArgNoClaim(options::OPT_fmodules);
+  bool HasFModuleName = Args.hasArgNoClaim(options::OPT_fmodule_name_EQ);
+  const Arg *Std = Args.getLastArgNoClaim(options::OPT_std_EQ);
   MaybeCXX20ModuleMode =
       Std && (Std->containsValue("c++2a") || Std->containsValue("c++20") ||
-              Std->containsValue("c++latest"));
-  MaybeCXX20ModuleMode |= Args.hasArg(options::OPT_fmodules_ts);
+              Std->containsValue("c++latest")) &&
+      !(HasFModules || HasFModuleName);
+
+  // FIXME : maybe throw out conflicting options, probably move all this
+  // into a separate fn.
 
   // Process -fmodule-header{=} flags.
   if (Arg *A = Args.getLastArg(options::OPT_fmodule_header_EQ,
                                options::OPT_fmodule_header)) {
-    if (A->getOption().matches(options::OPT_fmodule_header))
+    if (HasFModules)
+      Diags.Report(diag::err_drv_incompatible_module_opts)
+        << A->getAsString(Args) << "-fmodules";
+    else if (HasFModuleName)
+      Diags.Report(diag::err_drv_incompatible_module_opts)
+        << A->getAsString(Args) << "-fmodule-name[=]";
+    else if (A->getOption().matches(options::OPT_fmodule_header))
       ModuleHeaderModeSet = HeaderMode_Default;
     else {
       StringRef ArgName = A->getValue();
@@ -4012,17 +4027,23 @@ Action *Driver::ConstructPhaseAction(
                         options::OPT_fno_rewrite_includes, false) &&
           !Args.hasFlag(options::OPT_frewrite_imports,
                         options::OPT_fno_rewrite_imports, false) &&
-          !Args.hasFlag(options::OPT_fdirectives_only,
-                        options::OPT_fno_directives_only, false) &&
           !CCGenDiagnostics)
         OutputTy = types::getPreprocessedType(OutputTy);
+
+      // We recognize a C++ header as input for a header unit when we are
+      // in C++20 modules mode, or when the user gives -fmodule-header.
+      if (OutputTy == types::TY_PP_CXXHeader &&
+        ((ModuleHeaderModeSet != HeaderMode_None) || MaybeCXX20ModuleMode))
+       OutputTy = types::TY_PP_CXXHeaderUnit;
+
       assert(OutputTy != types::TY_INVALID &&
              "Cannot preprocess this input type!");
     }
     return C.MakeAction<PreprocessJobAction>(Input, OutputTy);
   }
   case phases::Precompile: {
-    types::ID OutputTy = getPrecompiledType(Input->getType());
+    types::ID InputTy = Input->getType();
+    types::ID OutputTy = getPrecompiledType(InputTy);
     assert(OutputTy != types::TY_INVALID &&
            "Cannot precompile this input type!");
 
@@ -4035,6 +4056,13 @@ Action *Driver::ConstructPhaseAction(
       if (ModName)
         OutputTy = types::TY_ModuleFile;
     }
+
+    // If we're in C++20 modules mode, or we were given a -fmodule-header*
+    // flag or explicit header unit input type, then build a header unit
+    // rather than a PCH.
+    if (OutputTy == types::TY_PCH && InputTy == types::TY_PP_CXXHeaderUnit)
+//        ((ModuleHeaderModeSet != HeaderMode_None) || MaybeCXX20ModuleMode)
+      OutputTy = types::TY_HeaderUnit;
 
     if (Args.hasArg(options::OPT_fsyntax_only)) {
       // Syntax checks should not emit a PCH file
