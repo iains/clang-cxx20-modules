@@ -311,6 +311,27 @@ GenerateHeaderModuleAction::CreateOutputFile(CompilerInstance &CI,
   return CI.createDefaultOutputFile(/*Binary=*/true, InFile, "pcm");
 }
 
+bool GenerateHeaderUnitAction::BeginSourceFileAction(
+    CompilerInstance &CI) {
+
+  if (!CI.getLangOpts().CPlusPlusModules) {
+    CI.getDiagnostics().Report(diag::err_module_interface_requires_cpp_modules);
+    return false;
+  }
+
+  CI.getLangOpts().setCompilingModule(LangOptions::CMK_HeaderUnit);
+  auto &HS = CI.getPreprocessor().getHeaderSearchInfo();
+  HS.getModuleMap().createHeaderUnit(CI.getLangOpts().CurrentModule);
+
+  return GenerateModuleAction::BeginSourceFileAction(CI);
+}
+
+std::unique_ptr<raw_pwrite_stream>
+GenerateHeaderUnitAction::CreateOutputFile(CompilerInstance &CI,
+                                           StringRef InFile) {
+  return CI.createDefaultOutputFile(/*Binary=*/true, InFile, "pcm");
+}
+
 SyntaxOnlyAction::~SyntaxOnlyAction() {
 }
 
