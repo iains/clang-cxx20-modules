@@ -1554,6 +1554,10 @@ Module *Decl::getOwningModuleForLinkage(bool IgnoreLinkage) const {
     // The private module fragment is part of its containing module for linkage
     // purposes.
     return M->Parent;
+
+  case Module::ModuleHeaderUnit:
+    llvm_unreachable("Header units should not have parent modules");
+    return nullptr;
   }
 
   llvm_unreachable("unknown module kind");

@@ -902,6 +902,19 @@ Module *ModuleMap::createHeaderModule(StringRef Name,
   return Result;
 }
 
+Module *ModuleMap::createHeaderUnit(StringRef Name) {
+  assert(LangOpts.CurrentModule == Name && "module name mismatch");
+  assert(!Modules[Name] && "redefining existing module");
+
+  auto *Result =
+      new Module(Name, SourceLocation(), nullptr, /*IsFramework*/ false,
+                 /*IsExplicit*/ false, NumCreatedModules++);
+  Result->Kind = Module::ModuleHeaderUnit;
+  Modules[Name] = SourceModule = Result;
+
+  return Result;
+}
+
 /// For a framework module, infer the framework against which we
 /// should link.
 static void inferFrameworkLink(Module *Mod, const DirectoryEntry *FrameworkDir,
