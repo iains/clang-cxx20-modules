@@ -1567,6 +1567,8 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
       Opts.ProgramAction = frontend::GenerateModuleInterface; break;
     case OPT_emit_header_module:
       Opts.ProgramAction = frontend::GenerateHeaderModule; break;
+    case OPT_emit_header_unit:
+      Opts.ProgramAction = frontend::GenerateHeaderUnit; break;
     case OPT_emit_pch:
       Opts.ProgramAction = frontend::GeneratePCH; break;
     case OPT_emit_interface_stubs: {
@@ -2753,6 +2755,7 @@ static bool isStrictlyPreprocessorAction(frontend::ActionKind Action) {
   case frontend::GenerateModule:
   case frontend::GenerateModuleInterface:
   case frontend::GenerateHeaderModule:
+  case frontend::GenerateHeaderUnit:
   case frontend::GeneratePCH:
   case frontend::GenerateInterfaceStubs:
   case frontend::ParseSyntaxOnly:
