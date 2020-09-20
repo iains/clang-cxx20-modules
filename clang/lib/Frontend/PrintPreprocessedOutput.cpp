@@ -414,8 +414,13 @@ void PrintPPOutputPPCallbacks::MacroDefined(const Token &MacroNameTok,
   if ((!DumpDefines && !DirectivesOnly) ||
       // Ignore __FILE__ etc.
       MI->isBuiltinMacro()) return;
-
-  MoveToLine(MI->getDefinitionLoc());
+  SourceLocation DefLoc = MI->getDefinitionLoc();
+  SourceManager& SM = PP.getSourceManager();
+  if (DirectivesOnly && !MI->isUsed() && SM.isWrittenInBuiltinFile(DefLoc))
+    return; 
+  if (DirectivesOnly && !MI->isUsed() && SM.isWrittenInCommandLineFile(DefLoc))
+    return;
+  MoveToLine(DefLoc);
   PrintMacroDefinition(*MacroNameTok.getIdentifierInfo(), *MI, PP, OS);
   setEmittedDirectiveOnThisLine();
 }
