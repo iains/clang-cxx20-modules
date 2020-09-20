@@ -117,6 +117,7 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
     return nullptr;
 
   case LangOptions::CMK_HeaderModule:
+  case LangOptions::CMK_HeaderUnit:
     Diag(ModuleLoc, diag::err_module_decl_in_header_module);
     return nullptr;
   }
@@ -252,6 +253,7 @@ Sema::ActOnPrivateModuleFragmentDecl(SourceLocation ModuleLoc,
                                : ModuleScopes.back().Module->Kind) {
   case Module::ModuleMapModule:
   case Module::GlobalModuleFragment:
+  case Module::ModuleHeaderUnit:
     Diag(PrivateLoc, diag::err_private_module_fragment_not_module);
     return nullptr;
 
