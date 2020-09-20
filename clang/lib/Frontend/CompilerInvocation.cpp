@@ -1612,6 +1612,8 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
       Opts.ProgramAction = frontend::GenerateModuleInterface; break;
     case OPT_emit_header_module:
       Opts.ProgramAction = frontend::GenerateHeaderModule; break;
+    case OPT_emit_header_unit:
+      Opts.ProgramAction = frontend::GenerateHeaderUnit; break;
     case OPT_emit_pch:
       Opts.ProgramAction = frontend::GeneratePCH; break;
     case OPT_emit_interface_stubs: {
@@ -2213,6 +2215,7 @@ static const StringRef GetInputKindName(InputKind IK) {
 static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
                           const TargetOptions &TargetOpts,
                           PreprocessorOptions &PPOpts,
+                          FrontendOptions &FEOpts,
                           DiagnosticsEngine &Diags) {
   // FIXME: Cleanup per-file based stuff.
   LangStandard::Kind LangStd = LangStandard::lang_unspecified;
@@ -2868,6 +2871,7 @@ static bool isStrictlyPreprocessorAction(frontend::ActionKind Action) {
   case frontend::GenerateModule:
   case frontend::GenerateModuleInterface:
   case frontend::GenerateHeaderModule:
+  case frontend::GenerateHeaderUnit:
   case frontend::GeneratePCH:
   case frontend::GenerateInterfaceStubs:
   case frontend::ParseSyntaxOnly:
@@ -3095,7 +3099,7 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
     // Other LangOpts are only initialized when the input is not AST or LLVM IR.
     // FIXME: Should we really be calling this for an Language::Asm input?
     ParseLangArgs(LangOpts, Args, DashX, Res.getTargetOpts(),
-                  Res.getPreprocessorOpts(), Diags);
+                  Res.getPreprocessorOpts(), Res.getFrontendOpts(), Diags);
     if (Res.getFrontendOpts().ProgramAction == frontend::RewriteObjC)
       LangOpts.ObjCExceptions = 1;
     if (T.isOSDarwin() && DashX.isPreprocessed()) {
