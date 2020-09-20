@@ -558,7 +558,10 @@ public:
   /// Create a header module from the specified list of headers.
   Module *createHeaderModule(StringRef Name, ArrayRef<Module::Header> Headers);
 
-  /// Infer the contents of a framework module map from the given
+   /// Create a C++20 header unit.
+  Module *createHeaderUnit(StringRef Name);
+
+ /// Infer the contents of a framework module map from the given
   /// framework directory.
   Module *inferFrameworkModule(const DirectoryEntry *FrameworkDir,
                                bool IsSystem, Module *Parent);

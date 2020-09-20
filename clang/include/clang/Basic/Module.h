@@ -109,6 +109,9 @@ public:
     /// This is a C++ Modules TS module interface unit.
     ModuleInterfaceUnit,
 
+    /// This is a C++ 20 header unit.
+    ModuleHeaderUnit,
+
     /// This is a fragment of the global module within some C++ module.
     GlobalModuleFragment,
 
