@@ -86,6 +86,9 @@ enum ActionKind {
   /// Generate pre-compiled module from a set of header files.
   GenerateHeaderModule,
 
+  /// Generate pre-compiled C++20 header unit from a header file.
+  GenerateHeaderUnit,
+
   /// Generate pre-compiled header.
   GeneratePCH,
 
