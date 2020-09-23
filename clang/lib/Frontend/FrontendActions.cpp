@@ -333,6 +333,35 @@ GenerateHeaderModuleAction::CreateOutputFile(CompilerInstance &CI,
   return CI.createDefaultOutputFile(/*Binary=*/true, InFile, "pcm");
 }
 
+bool GenerateHeaderUnitAction::PrepareToExecuteAction(CompilerInstance &CI) {
+  if (!CI.getLangOpts().Modules) {
+    CI.getDiagnostics().Report(diag::err_header_module_requires_modules);
+    return false;
+  }
+
+  auto &Inputs = CI.getFrontendOpts().Inputs;
+  if (Inputs.empty())
+    return GenerateModuleAction::BeginInvocation(CI);
+
+  auto Kind = Inputs[0].getKind();
+  bool Preprocessed = Kind.isPreprocessed();
+  assert (Inputs.size() == 1 && "expected a single header");
+
+  if (Preprocessed)
+    return GenerateModuleAction::PrepareToExecuteAction(CI);
+
+  const FrontendInputFile &FIF = Inputs[0];
+  if (FIF.getKind().getFormat() != InputKind::Source || !FIF.isFile()) {
+      CI.getDiagnostics().Report(diag::err_module_header_file_not_found)
+          << (FIF.isFile() ? FIF.getFile()
+                           : FIF.getBuffer().getBufferIdentifier());
+      return true;
+  }
+
+  HeaderName = std::string(FIF.getFile());
+  return GenerateModuleAction::PrepareToExecuteAction(CI);
+}
+
 bool GenerateHeaderUnitAction::BeginSourceFileAction(
     CompilerInstance &CI) {
 
@@ -343,7 +372,22 @@ bool GenerateHeaderUnitAction::BeginSourceFileAction(
 
   CI.getLangOpts().setCompilingModule(LangOptions::CMK_HeaderUnit);
   auto &HS = CI.getPreprocessor().getHeaderSearchInfo();
-  HS.getModuleMap().createHeaderUnit(CI.getLangOpts().CurrentModule);
+  const DirectoryLookup *CurDir = nullptr;
+  Optional<FileEntryRef> FE = HS.LookupFile(
+        HeaderName, SourceLocation(), /*Angled*/ false, nullptr, CurDir, None,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+  if (!FE) {
+    CI.getDiagnostics().Report(diag::err_module_header_file_not_found)
+        << HeaderName;
+    return false;
+  }
+
+  // We add module map (implicit modules) information to the header unit so
+  // that it can be used with '-fmodule-name='.  Make the module name be the
+  // pathname for the header. ??? Seemed an idea, but is this useful?
+
+  Module::Header H{HeaderName, HeaderName, &FE->getFileEntry()};
+  HS.getModuleMap().createHeaderUnit(CI.getLangOpts().CurrentModule, H);
 
   return GenerateModuleAction::BeginSourceFileAction(CI);
 }

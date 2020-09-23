@@ -172,7 +172,10 @@ private:
 
 class GenerateHeaderUnitAction : public GenerateModuleAction {
 
+  std::string  HeaderName;
+
 private:
+  bool PrepareToExecuteAction(CompilerInstance &CI) override;
   bool BeginSourceFileAction(CompilerInstance &CI) override;
 
   std::unique_ptr<raw_pwrite_stream>
