@@ -901,16 +901,17 @@ Module *ModuleMap::createHeaderModule(StringRef Name,
   return Result;
 }
 
-Module *ModuleMap::createHeaderUnit(StringRef Name) {
+Module *ModuleMap::createHeaderUnit(StringRef Name, Module::Header H) {
   assert(LangOpts.CurrentModule == Name && "module name mismatch");
   assert(!Modules[Name] && "redefining existing module");
 
   auto *Result =
       new Module(Name, SourceLocation(), nullptr, /*IsFramework*/ false,
-                 /*IsExplicit*/ false, NumCreatedModules++);
+                 /*IsExplicit*/ true, NumCreatedModules++);
   Result->Kind = Module::ModuleHeaderUnit;
+  Result->Exports.push_back(Module::ExportDecl(nullptr, true));
   Modules[Name] = SourceModule = Result;
-
+  addHeader(Result, H, NormalHeader);
   return Result;
 }
 
