@@ -140,6 +140,9 @@ private:
   /// The module we're currently writing, if any.
   Module *WritingModule = nullptr;
 
+  /// The module is a header unit.
+  bool IsHeaderUnit = false;
+
   /// The offset of the first bit inside the AST_BLOCK.
   uint64_t ASTBlockStartOffset = 0;
 
@@ -478,7 +481,7 @@ private:
                        bool Modules);
   void WriteSourceManagerBlock(SourceManager &SourceMgr,
                                const Preprocessor &PP);
-  void WritePreprocessor(const Preprocessor &PP, bool IsModule);
+  void WritePreprocessor(const Preprocessor &PP, bool IsModule, Module *Mod);
   void WriteHeaderSearch(const HeaderSearch &HS);
   void WritePreprocessorDetail(PreprocessingRecord &PPRec,
                                uint64_t MacroOffsetsBase);
