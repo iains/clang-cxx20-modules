@@ -824,16 +824,14 @@ std::unique_ptr<llvm::raw_pwrite_stream> CompilerInstance::createOutputFile(
 
 bool CompilerInstance::InitializeSourceManager(const FrontendInputFile &Input){
   return InitializeSourceManager(Input, getDiagnostics(), getFileManager(),
-                                 getSourceManager(),
-                                 hasPreprocessor() ? &getPreprocessor() : nullptr);
+                                 getSourceManager());
 }
 
 // static
 bool CompilerInstance::InitializeSourceManager(const FrontendInputFile &Input,
                                                DiagnosticsEngine &Diags,
                                                FileManager &FileMgr,
-                                               SourceManager &SourceMgr,
-                                               const Preprocessor *Preproc) {
+                                               SourceManager &SourceMgr) {
   SrcMgr::CharacteristicKind Kind =
       Input.getKind().getFormat() == InputKind::ModuleMap
           ? Input.isSystem() ? SrcMgr::C_System_ModuleMap
@@ -850,32 +848,16 @@ bool CompilerInstance::InitializeSourceManager(const FrontendInputFile &Input,
   StringRef InputFile = Input.getFile();
 
   // Figure out where to get and map in the main file.
-  Optional<FileEntryRef> FE;
   if (InputFile != "-") {
-    InputKind::HeaderUnitKind HUK = Input.getHeaderUnit();
-    if (Preproc && !Input.isPreprocessed() &&
-        (HUK == InputKind::HeaderUnit_User ||
-         HUK == InputKind::HeaderUnit_System)) {
-      HeaderSearch& HS = Preproc->getHeaderSearchInfo();
-      const DirectoryLookup *CurDir = nullptr;
-      FE = HS.LookupFile(
-        InputFile, SourceLocation(),
-        /*Angled*/ HUK == InputKind::HeaderUnit_System, nullptr, CurDir, None,
-        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-        if (!FE) {
-          Diags.Report(diag::err_module_header_file_not_found)
-            << InputFile;
-          return false;
-        }
-    } else {
-      FE = FileMgr.getOptionalFileRef(InputFile, /*OpenFile=*/true);
-      if (!FE) {
-        // FIXME: include the error in the diagnostic.
-        Diags.Report(diag::err_fe_error_reading) << InputFile;
-        return false;
-      }
+    auto FileOrErr = FileMgr.getFileRef(InputFile, /*OpenFile=*/true);
+    if (!FileOrErr) {
+      // FIXME: include the error in the diagnostic.
+      consumeError(FileOrErr.takeError());
+      Diags.Report(diag::err_fe_error_reading) << InputFile;
+      return false;
     }
-    FileEntryRef File = *FE;
+    FileEntryRef File = *FileOrErr;
+
     // The natural SourceManager infrastructure can't currently handle named
     // pipes, but we would at least like to accept them for the main
     // file. Detect them here, read them with the volatile flag so FileMgr will
