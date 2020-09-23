@@ -2136,6 +2136,7 @@ static bool shouldIgnoreMacro(MacroDirective *MD, bool IsModule,
     SourceLocation Loc = MD->getLocation();
     if (Loc.isInvalid())
       return true;
+    // ??? : should we still actually emit these when there is a use?
     if (PP.getSourceManager().getFileID(Loc) == PP.getPredefinesFileID())
       return true;
   }
@@ -2145,7 +2146,8 @@ static bool shouldIgnoreMacro(MacroDirective *MD, bool IsModule,
 
 /// Writes the block containing the serialized form of the
 /// preprocessor.
-void ASTWriter::WritePreprocessor(const Preprocessor &PP, bool IsModule) {
+void ASTWriter::WritePreprocessor(const Preprocessor &PP, bool IsModule,
+                                  Module *Mod) {
   uint64_t MacroOffsetsBase = Stream.GetCurrentBitNo();
 
   PreprocessingRecord *PPRec = PP.getPreprocessingRecord();
@@ -2211,6 +2213,7 @@ void ASTWriter::WritePreprocessor(const Preprocessor &PP, bool IsModule) {
   // identifier they belong to.
   for (const IdentifierInfo *Name : MacroIdentifiers) {
     MacroDirective *MD = PP.getLocalMacroDirectiveHistory(Name);
+    MacroInfo *MI = MD->getMacroInfo();
     uint64_t StartOffset = Stream.GetCurrentBitNo() - MacroOffsetsBase;
     assert((StartOffset >> 32) == 0 && "Macro identifiers offset too large");
 
@@ -2236,8 +2239,18 @@ void ASTWriter::WritePreprocessor(const Preprocessor &PP, bool IsModule) {
     auto Leafs = PP.getLeafModuleMacros(Name);
     SmallVector<ModuleMacro*, 8> Worklist(Leafs.begin(), Leafs.end());
     llvm::DenseMap<ModuleMacro*, unsigned> Visits;
-    while (!Worklist.empty()) {
-      auto *Macro = Worklist.pop_back_val();
+    // For header units handle macros defined in the main module.
+    if (IsModule && IsHeaderUnit && !Record.empty() && Worklist.empty())
+      {
+        ModuleMacroRecord.push_back(getSubmoduleID(Mod));
+        ModuleMacroRecord.push_back(getMacroRef(MI, Name));
+        Stream.EmitRecord(PP_MODULE_MACRO, ModuleMacroRecord);
+        ModuleMacroRecord.clear();
+        EmittedModuleMacros = true;
+      }
+    else
+      while (!Worklist.empty()) {
+        auto *Macro = Worklist.pop_back_val();
 
       // Emit a record indicating this submodule exports this macro.
       ModuleMacroRecord.push_back(
@@ -4398,6 +4411,8 @@ ASTFileSignature ASTWriter::WriteASTCore(Sema &SemaRef, StringRef isysroot,
   using namespace llvm;
 
   bool isModule = WritingModule != nullptr;
+  if (isModule)
+    IsHeaderUnit = WritingModule->Kind == Module::ModuleHeaderUnit;
 
   // Make sure that the AST reader knows to finalize itself.
   if (Chain)
@@ -4767,7 +4782,7 @@ ASTFileSignature ASTWriter::WriteASTCore(Sema &SemaRef, StringRef isysroot,
   WriteFileDeclIDsMap();
   WriteSourceManagerBlock(Context.getSourceManager(), PP);
   WriteComments();
-  WritePreprocessor(PP, isModule);
+  WritePreprocessor(PP, isModule, WritingModule);
   WriteHeaderSearch(PP.getHeaderSearchInfo());
   WriteSelectors(SemaRef);
   WriteReferencedSelectorsPool(SemaRef);
