@@ -170,7 +170,7 @@ bool types::isCXX(ID Id) {
   case TY_CXX: case TY_PP_CXX:
   case TY_ObjCXX: case TY_PP_ObjCXX: case TY_PP_ObjCXX_Alias:
   case TY_CXXHeader: case TY_PP_CXXHeader:
-  case TY_CXXSHeader: case TY_CXXUHeader:
+  case TY_CXXSHeader: case TY_CXXUHeader: case TY_CXXHUHeader:
   case TY_PP_CXXHeaderUnit:
   case TY_ObjCXXHeader: case TY_PP_ObjCXXHeader:
   case TY_CXXModule: case TY_PP_CXXModule:
