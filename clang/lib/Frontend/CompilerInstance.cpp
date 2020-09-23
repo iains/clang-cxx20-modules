@@ -824,16 +824,14 @@ std::unique_ptr<llvm::raw_pwrite_stream> CompilerInstance::createOutputFile(
 
 bool CompilerInstance::InitializeSourceManager(const FrontendInputFile &Input){
   return InitializeSourceManager(Input, getDiagnostics(), getFileManager(),
-                                 getSourceManager(),
-                                 hasPreprocessor() ? &getPreprocessor() : nullptr);
+                                 getSourceManager());
 }
 
 // static
 bool CompilerInstance::InitializeSourceManager(const FrontendInputFile &Input,
                                                DiagnosticsEngine &Diags,
                                                FileManager &FileMgr,
-                                               SourceManager &SourceMgr,
-                                               const Preprocessor *Preproc) {
+                                               SourceManager &SourceMgr) {
   SrcMgr::CharacteristicKind Kind =
       Input.getKind().getFormat() == InputKind::ModuleMap
           ? Input.isSystem() ? SrcMgr::C_System_ModuleMap
@@ -850,42 +848,21 @@ bool CompilerInstance::InitializeSourceManager(const FrontendInputFile &Input,
   StringRef InputFile = Input.getFile();
 
   // Figure out where to get and map in the main file.
-
-  FileEntryRef File = nullptr;
-  // If the main file is a header, allow that it may be found in the user
-  // or system search paths, if that is enabled.
-  if (Preproc && !Input.isPreprocessed() &&
-      (HUK == InputKind::HeaderUnit_User ||
-       HUK == InputKind::HeaderUnit_System)) {
-    HeaderSearch& HS = Preproc->getHeaderSearchInfo();
-    const DirectoryLookup *CurDir = nullptr;
-    auto FE = HS.LookupFile(
-        InputFile, SourceLocation(),
-        /*Angled*/ HUK == InputKind::HeaderUnit_System, nullptr, CurDir, None,
-        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-    if (!FE) {
-      Diags.Report(diag::err_module_header_file_not_found) << InputFile;
-      return false;
-    }
-    File = *FE;
-  } else {
-    auto FileOrErr = InputFile == "-"
+  auto FileOrErr = InputFile == "-"
                        ? FileMgr.getSTDIN()
                        : FileMgr.getFileRef(InputFile, /*OpenFile=*/true);
-    if (!FileOrErr) {
-      // FIXME: include the error in the diagnostic even when it's not stdin.
-      auto EC = llvm::errorToErrorCode(FileOrErr.takeError());
-      if (InputFile != "-")
-        Diags.Report(diag::err_fe_error_reading) << InputFile;
-      else
-        Diags.Report(diag::err_fe_error_reading_stdin) << EC.message();
-      return false;
-    }
-    File = *FileOrErr;
+  if (!FileOrErr) {
+    // FIXME: include the error in the diagnostic even when it's not stdin.
+    auto EC = llvm::errorToErrorCode(FileOrErr.takeError());
+    if (InputFile != "-")
+      Diags.Report(diag::err_fe_error_reading) << InputFile;
+    else
+      Diags.Report(diag::err_fe_error_reading_stdin) << EC.message();
+    return false;
   }
 
   SourceMgr.setMainFileID(
-      SourceMgr.createFileID(File, SourceLocation(), Kind));
+      SourceMgr.createFileID(*FileOrErr, SourceLocation(), Kind));
 
   assert(SourceMgr.getMainFileID().isValid() &&
          "Couldn't establish MainFileID!");
