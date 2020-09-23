@@ -559,7 +559,7 @@ public:
   Module *createHeaderModule(StringRef Name, ArrayRef<Module::Header> Headers);
 
    /// Create a C++20 header unit.
-  Module *createHeaderUnit(StringRef Name);
+  Module *createHeaderUnit(StringRef Name, Module::Header H);
 
  /// Infer the contents of a framework module map from the given
   /// framework directory.
