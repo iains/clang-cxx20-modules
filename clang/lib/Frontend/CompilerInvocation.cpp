@@ -3107,10 +3107,12 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.DebuggerObjCLiteral = Args.hasArg(OPT_fdebugger_objc_literal);
   Opts.ApplePragmaPack = Args.hasArg(OPT_fapple_pragma_pack);
   if (IK.getHeaderUnit() != InputKind::HeaderUnit_None)
-    // We should only have one input.
-    // FIXME: is it guaranteed it can't be a buffer, and should we find the
-    // basename.
-    Opts.ModuleName = std::string(FEOpts.Inputs[0].getFile());
+    // For header units we name the module for the file; there should only be
+    // one input.  However, for preprocessed cases, the module name is not yet
+    // known (we need to pull that from the preprocessed source).
+    Opts.ModuleName = IK.isPreprocessed()
+                      ? std::string()
+                      : std::string(FEOpts.Inputs[0].getFile());
   else
     Opts.ModuleName = std::string(Args.getLastArgValue(OPT_fmodule_name_EQ));
   Opts.CurrentModule = Opts.ModuleName;
