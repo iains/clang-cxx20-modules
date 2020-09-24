@@ -311,6 +311,8 @@ GenerateHeaderModuleAction::CreateOutputFile(CompilerInstance &CI,
   return CI.createDefaultOutputFile(/*Binary=*/true, InFile, "pcm");
 }
 
+// FIXME: the actions here are likely duplicating checks already done elsewhere
+// or that could be done in the BeginSourceFileAction alone.
 bool GenerateHeaderUnitAction::PrepareToExecuteAction(CompilerInstance &CI) {
   if (!CI.getLangOpts().Modules) {
     CI.getDiagnostics().Report(diag::err_header_module_requires_modules);
@@ -321,21 +323,30 @@ bool GenerateHeaderUnitAction::PrepareToExecuteAction(CompilerInstance &CI) {
   if (Inputs.empty())
     return GenerateModuleAction::BeginInvocation(CI);
 
-  auto Kind = Inputs[0].getKind();
-  bool Preprocessed = Kind.isPreprocessed();
   assert (Inputs.size() == 1 && "expected a single header");
 
-  if (Preprocessed)
-    return GenerateModuleAction::PrepareToExecuteAction(CI);
-
   const FrontendInputFile &FIF = Inputs[0];
-  if (FIF.getKind().getFormat() != InputKind::Source || !FIF.isFile()) {
+  IK = FIF.getKind();
+
+  // Remember this for the begin source file action.
+  Preprocessed = IK.isPreprocessed();
+
+  // Check we have a source file and we can read it.
+  if (IK.getFormat() != InputKind::Source || !FIF.isFile()) {
       CI.getDiagnostics().Report(diag::err_module_header_file_not_found)
           << (FIF.isFile() ? FIF.getFile()
                            : FIF.getBuffer().getBufferIdentifier());
       return true;
   }
 
+  // We add module map information to the header unit so that it can be used
+  // with '-fmodule-name='.  As a convention, we will consider that the module
+  // name for a header unit is the filename of its original source.  Save that
+  // name here for the begin source action.
+
+  // When the source is preprocessed input, this will be overwritten once the
+  // original source name has been found from the initial line of the pre-proc
+  // output.
   HeaderName = std::string(FIF.getFile());
   return GenerateModuleAction::PrepareToExecuteAction(CI);
 }
@@ -347,8 +358,16 @@ bool GenerateHeaderUnitAction::BeginSourceFileAction(
     CI.getDiagnostics().Report(diag::err_module_interface_requires_cpp_modules);
     return false;
   }
-
   CI.getLangOpts().setCompilingModule(LangOptions::CMK_HeaderUnit);
+
+  // When we have a preprocessed input, we want to build a pairing between
+  // the module name (orginal file path) and a file entry for that - the 
+  // current input (the .iih) is not useful for this.  The initial processing
+  // for the source file should have peeked the right name from the preprocessed
+  // source and updated the module name.
+  if (Preprocessed)
+    HeaderName = CI.getLangOpts().ModuleName;
+
   auto &HS = CI.getPreprocessor().getHeaderSearchInfo();
   const DirectoryLookup *CurDir = nullptr;
   Optional<FileEntryRef> FE = HS.LookupFile(

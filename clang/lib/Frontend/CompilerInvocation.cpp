@@ -3566,9 +3566,11 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
 bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
                                        InputKind IK, const llvm::Triple &T,
                                        std::vector<std::string> &Includes,
+                                       FrontendOptions &FEOpts,
                                        DiagnosticsEngine &Diags) {
   unsigned NumErrorsBefore = Diags.getNumErrors();
 
+#if 0
   if (IK.getFormat() == InputKind::Precompiled ||
       IK.getLanguage() == Language::LLVM_IR) {
     // ObjCAAutoRefCount and Sanitize LangOpts are used to setup the
@@ -3588,6 +3590,7 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 
   // Other LangOpts are only initialized when the input is not AST or LLVM IR.
   // FIXME: Should we really be parsing this for an Language::Asm input?
+#endif
 
   // FIXME: Cleanup per-file based stuff.
   LangStandard::Kind LangStd = LangStandard::lang_unspecified;
@@ -3824,10 +3827,12 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 //  Opts.XLPragmaPack = Args.hasArg(OPT_fxl_pragma_pack);
 
   if (IK.getHeaderUnit() != InputKind::HeaderUnit_None)
-    // We should only have one input.
-    // FIXME: is it guaranteed it can't be a buffer, and should we find the
-    // basename.
-    Opts.ModuleName = std::string(FEOpts.Inputs[0].getFile());
+    // For header units we name the module for the file; there should only be
+    // one input.  However, for preprocessed cases, the module name is not yet
+    // known (we need to pull that from the preprocessed source).
+    Opts.ModuleName = IK.isPreprocessed()
+                      ? std::string()
+                      : std::string(FEOpts.Inputs[0].getFile());
   else
     Opts.ModuleName = std::string(Args.getLastArgValue(OPT_fmodule_name_EQ));
 //???  Opts.CurrentModule = Opts.ModuleName;
@@ -4436,10 +4441,27 @@ bool CompilerInvocation::CreateFromArgsImpl(
   ParseHeaderSearchArgs(Res.getHeaderSearchOpts(), Args, Diags,
                         Res.getFileSystemOpts().WorkingDir);
 
-  ParseLangArgs(LangOpts, Args, DashX, T, Res.getPreprocessorOpts().Includes,
-                Diags);
-  if (Res.getFrontendOpts().ProgramAction == frontend::RewriteObjC)
-    LangOpts.ObjCExceptions = 1;
+  if (DashX.getFormat() == InputKind::Precompiled ||
+      DashX.getLanguage() == Language::LLVM_IR) {
+    // ObjCAAutoRefCount and Sanitize LangOpts are used to setup the
+    // PassManager in BackendUtil.cpp. They need to be initializd no matter
+    // what the input type is.
+    if (Args.hasArg(OPT_fobjc_arc))
+      LangOpts.ObjCAutoRefCount = 1;
+    // PIClevel and PIELevel are needed during code generation and this should be
+    // set regardless of the input type.
+    LangOpts.PICLevel = getLastArgIntValue(Args, OPT_pic_level, 0, Diags);
+    LangOpts.PIE = Args.hasArg(OPT_pic_is_pie);
+    parseSanitizerKinds("-fsanitize=", Args.getAllArgValues(OPT_fsanitize_EQ),
+                        Diags, LangOpts.Sanitize);
+  } else {
+    // Other LangOpts are only initialized when the input is not AST or LLVM IR.
+    // FIXME: Should we really be calling this for an Language::Asm input?
+    ParseLangArgs(LangOpts, Args, DashX, T, Res.getPreprocessorOpts().Includes,
+                  Res.getFrontendOpts(), Diags);
+    if (Res.getFrontendOpts().ProgramAction == frontend::RewriteObjC)
+      LangOpts.ObjCExceptions = 1;
+  }
 
   if (LangOpts.CUDA) {
     // During CUDA device-side compilation, the aux triple is the

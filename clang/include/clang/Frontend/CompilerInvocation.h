@@ -257,6 +257,7 @@ private:
   static bool ParseLangArgs(LangOptions &Opts, llvm::opt::ArgList &Args,
                             InputKind IK, const llvm::Triple &T,
                             std::vector<std::string> &Includes,
+                            FrontendOptions &FEOpts,
                             DiagnosticsEngine &Diags);
 
   /// Generate command line options from LangOptions.
