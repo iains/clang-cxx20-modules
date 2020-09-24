@@ -2175,6 +2175,7 @@ static void GenerateLangArgs(const LangOptions &Opts,
 void CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
                                        InputKind IK, const llvm::Triple &T,
                                        std::vector<std::string> &Includes,
+                                       FrontendOptions &FEOpts,
                                        DiagnosticsEngine &Diags) {
   // FIXME: Cleanup per-file based stuff.
   LangStandard::Kind LangStd = LangStandard::lang_unspecified;
@@ -2480,10 +2481,12 @@ void CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   Opts.XLPragmaPack = Args.hasArg(OPT_fxl_pragma_pack);
 
   if (IK.getHeaderUnit() != InputKind::HeaderUnit_None)
-    // We should only have one input.
-    // FIXME: is it guaranteed it can't be a buffer, and should we find the
-    // basename.
-    Opts.ModuleName = std::string(FEOpts.Inputs[0].getFile());
+    // For header units we name the module for the file; there should only be
+    // one input.  However, for preprocessed cases, the module name is not yet
+    // known (we need to pull that from the preprocessed source).
+    Opts.ModuleName = IK.isPreprocessed()
+                      ? std::string()
+                      : std::string(FEOpts.Inputs[0].getFile());
   else
     Opts.ModuleName = std::string(Args.getLastArgValue(OPT_fmodule_name_EQ));
 //???  Opts.CurrentModule = Opts.ModuleName;
@@ -2983,7 +2986,7 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
     // Other LangOpts are only initialized when the input is not AST or LLVM IR.
     // FIXME: Should we really be calling this for an Language::Asm input?
     ParseLangArgs(LangOpts, Args, DashX, T, Res.getPreprocessorOpts().Includes,
-                  Diags);
+                  Res.getFrontendOpts(), Diags);
     if (Res.getFrontendOpts().ProgramAction == frontend::RewriteObjC)
       LangOpts.ObjCExceptions = 1;
     if (T.isOSDarwin() && DashX.isPreprocessed()) {
