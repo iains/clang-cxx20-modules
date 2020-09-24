@@ -793,6 +793,18 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
   if (!CI.InitializeSourceManager(Input))
     goto failure;
 
+  if (Input.getKind().isHeaderUnit() && Input.getKind().isPreprocessed() &&
+      !usesPreprocessorOnly()) {
+    // We have an input filename like foo.iih, but we want to find the right
+    // module name (and original file, to build the map entry).
+    // Check if the first line specifies the original source file name with a
+    // linemarker.
+    std::string PresumedInputFile = std::string(getCurrentFileOrBufferName());
+    ReadOriginalFileName(CI, PresumedInputFile);
+    CI.getLangOpts().ModuleName = PresumedInputFile;
+    CI.getLangOpts().CurrentModule = PresumedInputFile;
+  }
+
   // For module map files, we first parse the module map and synthesize a
   // "<module-includes>" buffer before more conventional processing.
   if (Input.getKind().getFormat() == InputKind::ModuleMap) {
