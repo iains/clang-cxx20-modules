@@ -255,6 +255,7 @@ private:
   static bool ParseLangArgsImpl(LangOptions &Opts, llvm::opt::ArgList &Args,
                                 InputKind IK, const llvm::Triple &T,
                                 std::vector<std::string> &Includes,
+                                FrontendOptions &FEOpts,
                                 DiagnosticsEngine &Diags);
 
   static bool ParseLangArgs(CompilerInvocation &Res, LangOptions &Opts,
