@@ -13,6 +13,7 @@
 #include "clang/Basic/SourceLocation.h"
 
 #include "clang/Frontend/ModuleMapper.h"
+#include "llvm/Support/Path.h"
 
 using namespace clang;
 
@@ -90,7 +91,6 @@ static ModuleClient *spawn_mapper_program(char const **errmsg,
 
 ModuleClient *ModuleClient::openModuleClient(SourceLocation /*Loc*/,
                                              const char * /*O*/,
-                                             void (*SetRepo)(const char *),
                                              char const * /*FullProgramName*/) {
   ModuleClient *C = nullptr;
   std::string Ident;
@@ -224,7 +224,7 @@ ModuleClient *ModuleClient::openModuleClient(SourceLocation /*Loc*/,
 
   auto &Repo = Packets[1];
   if (Repo.GetCode() == Cody::Client::PC_PATHNAME)
-    SetRepo(Repo.GetString().c_str());
+    C->setModuleRepositoryName(Repo.GetString().c_str());
 
   return C;
 }
@@ -263,3 +263,29 @@ void ModuleClient::closeModuleClient(SourceLocation /*Loc*/,
 
   delete Mapper;
 }
+
+void ModuleClient::setModuleRepositoryName (const char *R) {
+  // Match the behaviour from GCC for a name of '.'.
+  if (!R || !R[0] || (R[0] == '.' && strlen(R) == 1))
+    ModuleRepositoryName = "";
+  else {
+    ModuleRepositoryName = R;
+    StringRef Sep = llvm::sys::path::get_separator();
+    assert(Sep.size() == 1 && "not expecting to deal with multi-char sep");
+    if (ModuleRepositoryName.back() == Sep[0])
+      ModuleRepositoryName.pop_back();
+  }
+}
+
+std::string ModuleClient::maybeAddRepoPrefix(std::string ModPathIn)
+{
+  if (!ModuleRepositoryName.empty() &&
+      !llvm::sys::path::is_absolute(ModPathIn)) {
+      std::string Out = ModuleRepositoryName;
+    Out += llvm::sys::path::get_separator();
+    Out += llvm::sys::path::remove_leading_dotslash(ModPathIn);
+    return Out;
+  } else
+    return ModPathIn;
+}
+
