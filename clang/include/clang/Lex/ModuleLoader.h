@@ -17,6 +17,7 @@
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Frontend/ModuleMapper.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/StringRef.h"
@@ -75,6 +76,9 @@ public:
 /// for resolving a module name (e.g., "std") to an actual module file, and
 /// then loading that module.
 class ModuleLoader {
+  /// Experimental use of libcody for managing module mapping
+  ModuleClient *Mapper = nullptr;
+
   // Building a module if true.
   bool BuildingModule;
 
@@ -119,6 +123,10 @@ public:
                                       Module::NameVisibilityKind Visibility,
                                       bool IsInclusionDirective) = 0;
 
+  virtual bool loadModuleFile(StringRef FileName) = 0;
+
+  virtual bool maybeAddModuleForFile(SourceLocation Loc, StringRef Name) = 0;
+
   /// Attempt to create the given module from the specified source buffer.
   /// Does not load the module or make any submodule visible; for that, use
   /// loadModule and makeModuleVisible.
@@ -155,6 +163,21 @@ public:
                                     SourceLocation TriggerLoc) = 0;
 
   bool HadFatalFailure = false;
+
+  /// @name Experimental module mapper impl.
+  /// {
+
+  virtual ModuleClient *createMapper(SourceLocation Loc) = 0;
+
+  void setMapper (ModuleClient *M) {
+    Mapper = M;
+  }
+
+  ModuleClient *getMapper(SourceLocation Loc) {
+    return Mapper ? Mapper : createMapper(Loc);
+  }
+
+  /// }
 };
 
 /// A module loader that doesn't know how to create or load modules.
@@ -165,6 +188,11 @@ public:
                               bool IsInclusionDirective) override {
     return {};
   }
+  
+  bool loadModuleFile(StringRef FileName) override { return false; }
+
+  bool maybeAddModuleForFile(SourceLocation ImportLoc,
+                             StringRef FileName) override { return false; }
 
   void createModuleFromSource(SourceLocation ImportLoc, StringRef ModuleName,
                               StringRef Source) override {}
@@ -180,6 +208,11 @@ public:
                             SourceLocation TriggerLoc) override {
     return false;
   }
+
+  ModuleClient *createMapper(SourceLocation Loc) override {
+    return nullptr;
+  }
+
 };
 
 } // namespace clang

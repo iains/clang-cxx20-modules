@@ -153,9 +153,6 @@ class CompilerInstance : public ModuleLoader {
   /// One or more modules failed to build.
   bool DisableGeneratingGlobalModuleIndex = false;
 
-  /// Experimental use of libcody for managing module mapping
-  ModuleClient *Mapper = nullptr;
-
   /// The stream for verbose output if owned, otherwise nullptr.
   std::unique_ptr<raw_ostream> OwnedVerboseOutputStream;
 
@@ -775,19 +772,6 @@ public:
 
   void createASTReader();
 
-  bool loadModuleFile(StringRef FileName);
-
-  /// @name Experimental module mapper impl.
-  /// {
-
-  ModuleClient *createMapper(SourceLocation Loc);
-
-  ModuleClient *getMapper(SourceLocation Loc) {
-    return Mapper ? Mapper : createMapper(Loc);
-  }
-
-  /// }
-
 private:
   /// Find a module, potentially compiling it, before reading its AST.  This is
   /// the guts of loadModule.
@@ -810,6 +794,11 @@ public:
                               Module::NameVisibilityKind Visibility,
                               bool IsInclusionDirective) override;
 
+  bool loadModuleFile(StringRef FileName) override;
+
+  bool maybeAddModuleForFile(SourceLocation ImportLoc,
+                             StringRef FileName) override;
+
   void createModuleFromSource(SourceLocation ImportLoc, StringRef ModuleName,
                               StringRef Source) override;
 
@@ -831,6 +820,9 @@ public:
   void setExternalSemaSource(IntrusiveRefCntPtr<ExternalSemaSource> ESS);
 
   InMemoryModuleCache &getModuleCache() const { return *ModuleCache; }
+
+  ModuleClient *createMapper(SourceLocation Loc) override;
+
 };
 
 } // end namespace clang
