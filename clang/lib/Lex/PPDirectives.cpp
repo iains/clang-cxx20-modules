@@ -19,6 +19,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TokenKinds.h"
+#include "clang/Frontend/ModuleMapper.h"
 #include "clang/Lex/CodeCompletionHandler.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/LexDiagnostic.h"
@@ -1959,6 +1960,14 @@ Preprocessor::ImportAction Preprocessor::HandleHeaderIncludeOrImport(
     if (File && isPCHThroughHeader(&File->getFileEntry()))
       SkippingUntilPCHThroughHeader = false;
     return {ImportAction::None};
+  }
+
+  if (IsImportDecl && File && !SuggestedModule &&
+      TheModuleLoader.maybeAddModuleForFile(FilenameLoc, File->getName())) {
+    File = LookupHeaderIncludeOrImport(
+          CurDir, Filename, FilenameLoc, FilenameRange, FilenameTok,
+         IsFrameworkFound, IsImportDecl, IsMapped, LookupFrom, LookupFromFile,
+         LookupFilename, RelativePath, SearchPath, SuggestedModule, isAngled);
   }
 
   // Should we enter the source file? Set to Skip if either the source file is
