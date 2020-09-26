@@ -2189,3 +2189,8 @@ void CompilerInstance::setExternalSemaSource(
     IntrusiveRefCntPtr<ExternalSemaSource> ESS) {
   ExternalSemaSrc = std::move(ESS);
 }
+
+ModuleClient *CompilerInstance::createMapper(SourceLocation Loc) {
+  Mapper = ModuleClient::openModuleClient(Loc, nullptr, "clang");
+  return Mapper;
+}
