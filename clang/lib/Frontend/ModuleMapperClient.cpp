@@ -281,7 +281,7 @@ std::string ModuleClient::maybeAddRepoPrefix(std::string ModPathIn)
 {
   if (!ModuleRepositoryName.empty() &&
       !llvm::sys::path::is_absolute(ModPathIn)) {
-      std::string Out = ModuleRepositoryName;
+    std::string Out = ModuleRepositoryName;
     Out += llvm::sys::path::get_separator();
     Out += llvm::sys::path::remove_leading_dotslash(ModPathIn);
     return Out;
