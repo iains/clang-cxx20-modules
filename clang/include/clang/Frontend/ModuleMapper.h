@@ -73,15 +73,19 @@ private:
 };
 
 class ModuleClient : public Cody::Client {
+  std::string ModuleRepositoryName = "";
 
 public:
   ModuleClient(Cody::Server *S) : Client(S) {}
+#if NOT_YET
   ModuleClient(int FdFrom, int FdTo) : Client(FdFrom, FdTo) {}
+#endif
 
 public:
+  void setModuleRepositoryName (const char *R);
+  std::string maybeAddRepoPrefix(std::string ModPathIn);
   static ModuleClient *openModuleClient(SourceLocation Loc, const char *Option,
-                                        void (*setRepo)(const char *),
-                                        char const *);
+                                        char const *ProgName);
   static void closeModuleClient(SourceLocation Loc, ModuleClient *);
 };
 
