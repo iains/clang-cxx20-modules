@@ -1632,6 +1632,22 @@ bool CompilerInstance::loadModuleFile(StringRef FileName) {
   }
 }
 
+bool CompilerInstance::maybeAddModuleForFile(SourceLocation IncLoc,
+                                             StringRef FileName) {
+  ModuleClient *MC = getMapper(IncLoc);
+  MC->Cork();
+  MC->ModuleImport(FileName.str());
+  auto Response = MC->Uncork();
+  if (Response[0].GetCode () == Cody::Client::PC_PATHNAME) {
+    std::string ModFile = MC->maybeAddRepoPrefix(Response[0].GetString());
+    if (loadModuleFile(ModFile))
+      return true;
+    } else
+      assert(Response[0].GetCode () == Cody::Client::PC_ERROR &&
+           "mapper response; not a path and not an error?");
+  return false;
+}
+
 namespace {
 enum ModuleSource {
   MS_ModuleNotFound,
@@ -2193,6 +2209,7 @@ void CompilerInstance::setExternalSemaSource(
 }
 
 ModuleClient *CompilerInstance::createMapper(SourceLocation Loc) {
-  Mapper = ModuleClient::openModuleClient(Loc, nullptr, "clang");
-  return Mapper;
+  ModuleClient *M = ModuleClient::openModuleClient(Loc, nullptr, "clang");
+  setMapper(M);
+  return M;
 }

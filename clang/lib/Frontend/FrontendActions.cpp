@@ -15,6 +15,7 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/MultiplexConsumer.h"
+#include "clang/Frontend/ModuleMapper.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Lex/DependencyDirectivesSourceMinimizer.h"
 #include "clang/Lex/HeaderSearch.h"
@@ -387,11 +388,12 @@ bool GenerateHeaderUnitAction::BeginSourceFileAction(
   // current input (the .iih) is not useful for this.  The initial processing
   // for the source file should have peeked the right name from the preprocessed
   // source and updated the module name.
-  if (Preprocessed)
-    HeaderName = CI.getLangOpts().ModuleName;
+//  if (Preprocessed)
+  HeaderName = CI.getLangOpts().ModuleName;
 
   auto &HS = CI.getPreprocessor().getHeaderSearchInfo();
   const DirectoryLookup *CurDir = nullptr;
+  // We should just use the fill path.
   Optional<FileEntryRef> FE = HS.LookupFile(
         HeaderName, SourceLocation(), /*Angled*/ false, nullptr, CurDir, None,
         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
@@ -408,13 +410,37 @@ bool GenerateHeaderUnitAction::BeginSourceFileAction(
   Module::Header H{HeaderName, HeaderName, &FE->getFileEntry()};
   HS.getModuleMap().createHeaderUnit(CI.getLangOpts().CurrentModule, H);
 
+  // Get the module mapper.
+  ModuleClient *MP = CI.getMapper(SourceLocation());
+  assert(MP && "could not get the mapper");
+  MP->Cork();
+  MP->ModuleExport(CI.getLangOpts().ModuleName);
+  auto Response = MP->Uncork();
+  if (Response[0].GetCode () == Cody::Client::PC_PATHNAME)
+    CI.getFrontendOpts().OutputFile =
+      MP->maybeAddRepoPrefix(Response[0].GetString());
+  else {
+    assert(Response[0].GetCode () == Cody::Client::PC_ERROR &&
+           "not a path and not an error?");
+//      error_at (loc, "unknown Compiled Module Interface: %s",
+//		packet.GetString ().c_str ());
+// random diagnostic for the sake of something...
+    CI.getDiagnostics().Report(diag::err_module_header_file_not_found)
+        << HeaderName;
+  }
+
   return GenerateModuleAction::BeginSourceFileAction(CI);
 }
 
 std::unique_ptr<raw_pwrite_stream>
 GenerateHeaderUnitAction::CreateOutputFile(CompilerInstance &CI,
                                            StringRef InFile) {
-  return CI.createDefaultOutputFile(/*Binary=*/true, InFile, "pcm");
+  // This will pick up the output file provided by the module mapper above
+  // (or on the command line), or set a default based on the input file
+  // otherwise.
+  return CI.createDefaultOutputFile(/*Binary=*/true, InFile, "pcm",
+                                  /*RemoveFileOnSignal=*/true,
+                                  /*CreateMissingDirectories=*/true);
 }
 
 SyntaxOnlyAction::~SyntaxOnlyAction() {
