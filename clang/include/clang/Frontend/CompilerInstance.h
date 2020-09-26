@@ -13,6 +13,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/CompilerInvocation.h"
+#include "clang/Frontend/ModuleMapper.h"
 #include "clang/Frontend/PCHContainerOperations.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Lex/HeaderSearchOptions.h"
@@ -151,6 +152,9 @@ class CompilerInstance : public ModuleLoader {
 
   /// One or more modules failed to build.
   bool DisableGeneratingGlobalModuleIndex = false;
+
+  /// Experimental use of libcody for managing module mapping
+  ModuleClient *Mapper = nullptr;
 
   /// The stream for verbose output if owned, otherwise nullptr.
   std::unique_ptr<raw_ostream> OwnedVerboseOutputStream;
@@ -774,6 +778,17 @@ public:
   void createASTReader();
 
   bool loadModuleFile(StringRef FileName);
+
+  /// @name Experimental module mapper impl.
+  /// {
+
+  ModuleClient *createMapper(SourceLocation Loc);
+
+  ModuleClient *getMapper(SourceLocation Loc) {
+    return Mapper ? Mapper : createMapper(Loc);
+  }
+
+  /// }
 
 private:
   /// Find a module, potentially compiling it, before reading its AST.  This is
