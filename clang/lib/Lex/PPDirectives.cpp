@@ -2029,8 +2029,11 @@ Preprocessor::ImportAction Preprocessor::HandleHeaderIncludeOrImport(
     return {ImportAction::None};
   }
 
-  if (IsImportDecl && File && !SuggestedModule &&
-      TheModuleLoader.maybeAddModuleForFile(FilenameLoc, File->getName())) {
+  // If we have no module so far try looking it up and loading it lazily.
+  
+  if (File && !SuggestedModule &&
+      TheModuleLoader.maybeAddModuleForFile(FilenameLoc, File->getName(),
+                                            IsImportDecl)) {
     File = LookupHeaderIncludeOrImport(
           CurDir, Filename, FilenameLoc, FilenameRange, FilenameTok,
          IsFrameworkFound, IsImportDecl, IsMapped, LookupFrom, LookupFromFile,

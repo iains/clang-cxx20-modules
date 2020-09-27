@@ -125,7 +125,8 @@ public:
 
   virtual bool loadModuleFile(StringRef FileName) = 0;
 
-  virtual bool maybeAddModuleForFile(SourceLocation Loc, StringRef Name) = 0;
+  virtual bool maybeAddModuleForFile(SourceLocation Loc, StringRef Name,
+                                     bool MustBePresent) = 0;
 
   /// Attempt to create the given module from the specified source buffer.
   /// Does not load the module or make any submodule visible; for that, use
@@ -192,7 +193,8 @@ public:
   bool loadModuleFile(StringRef FileName) override { return false; }
 
   bool maybeAddModuleForFile(SourceLocation ImportLoc,
-                             StringRef FileName) override { return false; }
+                             StringRef FileName,
+                             bool MustBePresent) override { return false; }
 
   void createModuleFromSource(SourceLocation ImportLoc, StringRef ModuleName,
                               StringRef Source) override {}
