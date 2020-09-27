@@ -799,7 +799,8 @@ public:
   bool loadModuleFile(StringRef FileName) override;
 
   bool maybeAddModuleForFile(SourceLocation ImportLoc,
-                             StringRef FileName) override;
+                             StringRef FileName,
+                             bool MustBePresent) override;
 
   void createModuleFromSource(SourceLocation ImportLoc, StringRef ModuleName,
                               StringRef Source) override;
