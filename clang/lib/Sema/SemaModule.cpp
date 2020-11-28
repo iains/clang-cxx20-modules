@@ -398,6 +398,18 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
       getCurrentModule()->Exports.emplace_back(Mod, false);
   } else if (ExportLoc.isValid()) {
     Diag(ExportLoc, diag::err_export_not_in_module_interface);
+  } else if (getLangOpts().isCompilingModule()) {
+    Module *ThisModule = PP.getHeaderSearchInfo()
+                           .lookupModule(getLangOpts().CurrentModule,
+                                         false,false);
+    assert (ThisModule && "was expecting a module if building one");
+    if (ThisModule &&
+        ThisModule->Kind == Module::ModuleKind::ModuleHeaderUnit) {
+      // Header Units implicitly export their imports.
+      //ThisModule->Exports.emplace_back(Mod, false);
+      if (!ThisModule->Imports.contains (Mod))
+        ThisModule->Imports.insert(Mod);
+    }
   }
 
   return Import;
@@ -435,6 +447,19 @@ void Sema::BuildModuleInclude(SourceLocation DirectiveLoc, Module *Mod) {
 
   getModuleLoader().makeModuleVisible(Mod, Module::AllVisible, DirectiveLoc);
   VisibleModules.setVisible(Mod, DirectiveLoc);
+  if (getLangOpts().isCompilingModule()) {
+    Module *ThisModule = PP.getHeaderSearchInfo()
+                           .lookupModule(getLangOpts().CurrentModule,
+                                         false,false);
+    assert (ThisModule && "was expecting a module if building one");
+    if (ThisModule &&
+        ThisModule->Kind == Module::ModuleKind::ModuleHeaderUnit) {
+      // Header Units implicitly export their imports.
+      //ThisModule->Exports.emplace_back(Mod, false);
+      if (!ThisModule->Imports.contains (Mod))
+        ThisModule->Imports.insert(Mod);
+    }
+  }
 }
 
 void Sema::ActOnModuleBegin(SourceLocation DirectiveLoc, Module *Mod) {
