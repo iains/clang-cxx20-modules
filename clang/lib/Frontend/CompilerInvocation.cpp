@@ -2583,6 +2583,13 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   else
     Opts.ModuleName = std::string(Args.getLastArgValue(OPT_fmodule_name_EQ));
   Opts.CurrentModule = Opts.ModuleName;
+  if (Args.hasArg(OPT_fmodule_mapper_EQ)) {
+    Opts.ModuleMapperInvocation =
+      std::string(Args.getLastArgValue(OPT_fmodule_mapper_EQ));
+    if (!Opts.ModuleMapperInvocation.empty())
+      Opts.UseModuleMapper = true;
+  } else
+    Opts.ModuleMapperInvocation = std::string();
 
   Opts.ModuleFeatures = Args.getAllArgValues(OPT_fmodule_feature);
   llvm::sort(Opts.ModuleFeatures);
