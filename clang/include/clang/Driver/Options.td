@@ -1996,11 +1996,19 @@ def fmodules_strict_decluse : Flag <["-"], "fmodules-strict-decluse">, Group<f_G
   MarshallingInfoFlag<LangOpts<"ModulesStrictDeclUse">>;
 def fno_modules_search_all : Flag <["-"], "fno-modules-search-all">, Group<f_Group>,
   Flags<[NoXarchOption, CC1Option]>;
+
 defm implicit_modules : BoolFOption<"implicit-modules",
   LangOpts<"ImplicitModules">, DefaultsToTrue,
   ChangedBy<NegFlag, [CC1Option]>, ResetBy<PosFlag>, BothFlags<[NoXarchOption]>>;
 def fretain_comments_from_system_headers : Flag<["-"], "fretain-comments-from-system-headers">, Group<f_Group>, Flags<[CC1Option]>,
   MarshallingInfoFlag<LangOpts<"RetainCommentsFromSystemHeaders">>;
+
+def fmodule_mapper_EQ :
+  Joined <["-"], "fmodule-mapper=">,
+  Group<f_Group>, Flags<[NoXarchOption, CC1Option]>;
+def fmodule_mapper :
+  Flag <["-"], "fmodule-mapper">,
+  Group<f_Group>, Alias<fmodule_mapper_EQ>, AliasArgs<["*internal"]> ;
 
 // GCC compatibility
 def fmodule_only : Flag <["-"], "fmodule-only">, Group<f_Group>,
