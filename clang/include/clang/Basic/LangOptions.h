@@ -323,6 +323,13 @@ public:
   /// If none is specified, abort (GCC-compatible behaviour).
   std::string OverflowHandler;
 
+  /// Use the module mapper protocol to find module file names from their
+  /// module name.
+  bool UseModuleMapper = false;
+
+  /// Module Mapper invocation string (empty when no module-mapper is in use).
+  std::string ModuleMapperInvocation;
+
   /// The module currently being compiled as specified by -fmodule-name.
   std::string ModuleName;
 

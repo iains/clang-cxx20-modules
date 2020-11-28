@@ -2173,6 +2173,13 @@ defm implicit_modules : BoolFOption<"implicit-modules",
 def fretain_comments_from_system_headers : Flag<["-"], "fretain-comments-from-system-headers">, Group<f_Group>, Flags<[CC1Option]>,
   MarshallingInfoFlag<LangOpts<"RetainCommentsFromSystemHeaders">>;
 
+def fmodule_mapper_EQ :
+  Joined <["-"], "fmodule-mapper=">,
+  Group<f_Group>, Flags<[NoXarchOption, CC1Option]>;
+def fmodule_mapper :
+  Flag <["-"], "fmodule-mapper">,
+  Group<f_Group>, Alias<fmodule_mapper_EQ>, AliasArgs<["*internal"]> ;
+
 // GCC compatibility
 def fmodule_only : Flag <["-"], "fmodule-only">, Group<f_Group>,
   Flags<[NoXarchOption]>;
