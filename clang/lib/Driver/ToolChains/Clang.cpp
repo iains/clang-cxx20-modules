@@ -3464,6 +3464,10 @@ static void RenderModulesOptions(Compilation &C, const Driver &D,
       CmdArgs.push_back("-fvalidate-ast-input-files-content");
   }
 
+  // -fmodule-mapper= specifies an external mechanism to perform module
+  // name to compiled module name mapping. 
+  Args.AddLastArg(CmdArgs, options::OPT_fmodule_mapper_EQ);
+
   // -fmodule-name specifies the module that is currently being built (or
   // used for header checking by -fmodule-maps).
   Args.AddLastArg(CmdArgs, options::OPT_fmodule_name_EQ);
