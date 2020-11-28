@@ -656,6 +656,11 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
     return false;
   }
 
+  case tok::annot_header_unit:
+    Actions.ActOnModuleInclude(Tok.getLocation(), reinterpret_cast<Module *>(Tok.getAnnotationValue()));
+    ConsumeAnnotationToken();
+    return false;
+
   case tok::annot_module_include:
     Actions.ActOnModuleInclude(Tok.getLocation(),
                                reinterpret_cast<Module *>(
