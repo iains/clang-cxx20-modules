@@ -171,10 +171,7 @@ private:
 };
 
 class GenerateHeaderUnitAction : public GenerateModuleAction {
-
-  std::string  HeaderName;
   InputKind IK;
-  bool Preprocessed;
 
 private:
   bool PrepareToExecuteAction(CompilerInstance &CI) override;
