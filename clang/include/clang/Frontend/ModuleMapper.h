@@ -85,10 +85,16 @@ public:
                                         char const *ProgName);
   static void closeModuleClient(SourceLocation Loc, ModuleClient *);
 
+  // Header unit names are either absolute or begin with ./ to disambiguate
+  // other modules with potentially the same name.
+
+  std::string canonicalizeHeaderName(std::string HeaderIn);
+
   /* Do the lookup for a header file named File.
      Result is the mapped name when the return value is true.
      Result is empty or an error message for false.  */
   bool cmiNameForFile(std::string File, std::string &Result);
+
 };
 
 } // namespace clang
