@@ -328,9 +328,6 @@ bool GenerateHeaderUnitAction::PrepareToExecuteAction(CompilerInstance &CI) {
   const FrontendInputFile &FIF = Inputs[0];
   IK = FIF.getKind();
 
-  // Remember this for the begin source file action.
-  Preprocessed = IK.isPreprocessed();
-
   // Check we have a source file and we can read it.
   if (IK.getFormat() != InputKind::Source || !FIF.isFile()) {
       CI.getDiagnostics().Report(diag::err_module_header_file_not_found)
@@ -339,15 +336,6 @@ bool GenerateHeaderUnitAction::PrepareToExecuteAction(CompilerInstance &CI) {
       return true;
   }
 
-  // We add module map information to the header unit so that it can be used
-  // with '-fmodule-name='.  As a convention, we will consider that the module
-  // name for a header unit is the filename of its original source.  Save that
-  // name here for the begin source action.
-
-  // When the source is preprocessed input, this will be overwritten once the
-  // original source name has been found from the initial line of the pre-proc
-  // output.
-  HeaderName = std::string(FIF.getFile());
   return GenerateModuleAction::PrepareToExecuteAction(CI);
 }
 
@@ -359,50 +347,61 @@ bool GenerateHeaderUnitAction::BeginSourceFileAction(
     return false;
   }
   CI.getLangOpts().setCompilingModule(LangOptions::CMK_HeaderUnit);
-
-  // When we have a preprocessed input, we want to build a pairing between
-  // the module name (orginal file path) and a file entry for that - the 
-  // current input (the .iih) is not useful for this.  The initial processing
-  // for the source file should have peeked the right name from the preprocessed
-  // source and updated the module name.
-//  if (Preprocessed)
-  HeaderName = CI.getLangOpts().ModuleName;
-
   auto &HS = CI.getPreprocessor().getHeaderSearchInfo();
-  const DirectoryLookup *CurDir = nullptr;
-  // We should just use the fill path.
-  Optional<FileEntryRef> FE = HS.LookupFile(
+
+  // Use the module name as the file name because for a preprocessed file,
+  // the initial processing for the source file should have peeked the right
+  // name from the preprocessed source and updated the module name.
+  std::string HeaderName = CI.getLangOpts().ModuleName;
+
+  Optional<FileEntryRef> FE;
+  if (IK.getHeaderUnit() == InputKind::HeaderUnitKind::HeaderUnit_Abs) {
+    // For header-unit-headers (i.e. regular headers and -fmodule-header or
+    // absolute pathnames - just to a normal file lookup).
+    auto File = CI.getFileManager().getFileRef(HeaderName, /*OpenFile=*/false);
+    if (!File)
+      FE = None;
+    FE = *File;
+  } else {
+    // Otherwise do a header search.
+    const DirectoryLookup *CurDir = nullptr;
+    // We should just use the full path.
+    FE = HS.LookupFile(
         HeaderName, SourceLocation(), /*Angled*/ false, nullptr, CurDir, None,
         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+  }
+
+  // We are building a CMI, the source must be available.
   if (!FE) {
     CI.getDiagnostics().Report(diag::err_module_header_file_not_found)
         << HeaderName;
     return false;
   }
 
-  // Make a module map entry for compat.
+  // We add module map (implicit modules) information to the header unit so
+  // that it can be used with '-fmodule-name='.  Make the module name be the
+  // pathname for the header. ??? Seemed an idea, but is this useful?
+
   Module::Header H{HeaderName, *FE};
   HS.getModuleMap().createHeaderUnit(CI.getLangOpts().CurrentModule, H);
 
-  // Get the module mapper.
-  ModuleClient *MP = CI.getMapper(SourceLocation());
-  assert(MP && "could not get the mapper");
-  MP->Cork();
-  MP->ModuleExport(CI.getLangOpts().ModuleName);
-  auto Response = MP->Uncork();
-  if (Response[0].GetCode () == Cody::Client::PC_PATHNAME)
-    CI.getFrontendOpts().OutputFile =
-      MP->maybeAddRepoPrefix(Response[0].GetString());
-  else {
-    assert(Response[0].GetCode () == Cody::Client::PC_ERROR &&
-           "not a path and not an error?");
-//      error_at (loc, "unknown Compiled Module Interface: %s",
-//		packet.GetString ().c_str ());
-// random diagnostic for the sake of something...
-    CI.getDiagnostics().Report(diag::err_module_header_file_not_found)
-        << HeaderName;
+  // Notify the module mapper (if there is one) that we're about to build
+  // and exporting module and fetch the output filename.
+  if (ModuleClient *MP = CI.getMapper(SourceLocation())) {
+    MP->Cork();
+    MP->ModuleExport(CI.getLangOpts().ModuleName);
+    auto Response = MP->Uncork();
+    if (Response[0].GetCode () == Cody::Client::PC_PATHNAME)
+      CI.getFrontendOpts().OutputFile =
+        MP->maybeAddRepoPrefix(Response[0].GetString());
+    else {
+      assert(Response[0].GetCode () == Cody::Client::PC_ERROR &&
+             "not a path and not an error?");
+      // random diagnostic for the sake of something...
+      CI.getDiagnostics().Report(diag::err_module_header_file_not_found)
+      << HeaderName + " : " + Response[0].GetString();
+    }
   }
-
   return GenerateModuleAction::BeginSourceFileAction(CI);
 }
 
