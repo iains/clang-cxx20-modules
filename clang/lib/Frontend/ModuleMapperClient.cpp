@@ -292,6 +292,24 @@ std::string ModuleClient::maybeAddRepoPrefix(std::string ModPathIn) {
     return ModPathIn;
 }
 
+// Header unit names are either absolute or begin with ./ to disambiguate
+// other modules with potentially the same name.
+
+std::string ModuleClient::canonicalizeHeaderName(std::string HeaderIn) {
+  if (llvm::sys::path::is_absolute(HeaderIn) || HeaderIn.empty())
+    return HeaderIn;
+
+  // Unless we already have a ./ at the start prepend one.
+  std::string Prepend = ".";
+  Prepend += llvm::sys::path::get_separator();
+
+  if (HeaderIn.size() > Prepend.size() && HeaderIn.find (Prepend) == 0)
+    return HeaderIn;
+
+  Prepend += HeaderIn;
+  return Prepend;
+}
+
 bool ModuleClient::cmiNameForFile(std::string File, std::string &Result) {
   Cork();
   ModuleImport(File);
