@@ -389,7 +389,9 @@ bool GenerateHeaderUnitAction::BeginSourceFileAction(
   // and exporting module and fetch the output filename.
   if (ModuleClient *MP = CI.getMapper(SourceLocation())) {
     MP->Cork();
-    MP->ModuleExport(CI.getLangOpts().ModuleName);
+    std::string CanonicalHUName =
+      MP->canonicalizeHeaderName(CI.getLangOpts().ModuleName);
+    MP->ModuleExport(CanonicalHUName);
     auto Response = MP->Uncork();
     if (Response[0].GetCode () == Cody::Client::PC_PATHNAME)
       CI.getFrontendOpts().OutputFile =
