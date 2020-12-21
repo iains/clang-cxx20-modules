@@ -195,6 +195,7 @@ int ModuleResolver::ModuleImportRequest(Cody::Server *S, Cody::Flags,
 
 int ModuleResolver::IncludeTranslateRequest(Cody::Server *S, Cody::Flags,
                                             std::string &Include) {
+  llvm::dbgs() << " IncludeTranslateRequest : " << Include <<  " result : " ;
   auto Iter = Map.find(Include);
   if (Iter == Map.end() && DefaultTranslate) {
     // Not found, look for it
@@ -216,10 +217,13 @@ int ModuleResolver::IncludeTranslateRequest(Cody::Server *S, Cody::Flags,
     }
   }
 
-  if (Iter == Map.end() || Iter->second.empty())
+  if (Iter == Map.end() || Iter->second.empty()) {
     S->BoolResponse(false);
-  else
+    llvm::dbgs() << "NO\n";
+  } else {
     S->PathnameResponse(Iter->second);
+    llvm::dbgs() << Iter->second << "\n";
+  }
 
   return 0;
 }
