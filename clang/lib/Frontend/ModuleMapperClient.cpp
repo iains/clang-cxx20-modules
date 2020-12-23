@@ -310,6 +310,29 @@ std::string ModuleClient::canonicalizeHeaderName(std::string HeaderIn) {
   return Prepend;
 }
 
+bool ModuleClient::cmiNameForHeader(std::string Header, std::string &Result) {
+  std::string Canonical = canonicalizeHeaderName (Header);
+
+  Cork();
+  IncludeTranslate(Canonical);
+  auto Response = Uncork();
+  if (Response[0].GetCode () == Cody::Client::PC_PATHNAME) {
+    Result = maybeAddRepoPrefix(Response[0].GetString());
+    return true;
+  } else if (Response[0].GetCode () == Cody::Client::PC_ERROR) {
+    Result = Response[0].GetString();
+    llvm::dbgs() << " cmiNameForHeader failed : " 
+                   << Result << "\n" ;
+    return false;
+  }
+
+//  assert(0 && "mapper response; not a path and not an error?");
+  llvm::dbgs() << " cmiNameForHeader unexpected result : " 
+                   << Response[0].GetCode () << "\n" ;
+  Result = std::string();
+  return false;
+}
+
 bool ModuleClient::cmiNameForFile(std::string File, std::string &Result) {
   Cork();
   ModuleImport(File);
