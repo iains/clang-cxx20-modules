@@ -1634,26 +1634,30 @@ bool CompilerInstance::loadModuleFile(StringRef FileName) {
 
 bool CompilerInstance::maybeAddModuleForFile(SourceLocation IncLoc,
                                              StringRef FileName,
-                                             bool MissingIsError) {
+                                             bool IsImport) {
   ModuleClient *MC = getMapper(IncLoc);
   if (!MC)
     return false;
 
+  // If it is not an import directive, it is an include one - and we should
+  // translate the include.
+
   std::string ModFile;
-  if (MC->cmiNameForFile(FileName.str(), ModFile)) {
-    // When processing a lazy load in response to parsing a #include
-    // directive, for example, an absent or unreadable module is not an
-    // error.
-    if (!MissingIsError) {
-      auto FRefOrErr = FileMgr->getFileRef(ModFile);
-      if (!FRefOrErr) {
-        consumeError(FRefOrErr.takeError());
-        return false; // Not an error to be missing or unreadable.
-      }
+  if (!IsImport) {
+    if (!MC->cmiNameForHeader(FileName.str(), ModFile))
+      return false;
+
+    auto FRefOrErr = FileMgr->getFileRef(ModFile);
+    if (!FRefOrErr) {
+      consumeError(FRefOrErr.takeError());
+      return false; // Not an error to be missing or unreadable.
     }
-    if (loadModuleFile(ModFile))
+  } else if (!MC->cmiNameForFile(FileName.str(), ModFile))
+    return false; // This is an error about to happen.
+
+  // Make the module available; this is the wrong place to do this...
+  if (loadModuleFile(ModFile))
       return true;
-  }
   return false;
 }
 
