@@ -783,7 +783,9 @@ static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
       // components. We don't have a good way to round-trip those.
       Module *M = reinterpret_cast<Module *>(Tok.getAnnotationValue());
       std::string Name = M->getFullModuleName();
+      OS.write("\"", 1);
       OS.write(Name.data(), Name.size());
+      OS.write("\"", 1);
       Callbacks->HandleNewlinesInToken(Name.data(), Name.size());
     } else if (Tok.isAnnotation()) {
       // Ignore annotation tokens created by pragmas - the pragmas themselves
