@@ -58,11 +58,11 @@ public:
                                          std::string &Agent,
                                          std::string &Ident) override;
   virtual int ModuleRepoRequest(Cody::Server *S) override;
-  virtual int ModuleExportRequest(Cody::Server *S,
+  virtual int ModuleExportRequest(Cody::Server *S, Cody::Flags,
                                   std::string &Module) override;
-  virtual int ModuleImportRequest(Cody::Server *S,
+  virtual int ModuleImportRequest(Cody::Server *S, Cody::Flags,
                                   std::string &Module) override;
-  virtual int IncludeTranslateRequest(Cody::Server *S,
+  virtual int IncludeTranslateRequest(Cody::Server *S, Cody::Flags,
                                       std::string &Include) override;
 
 private:

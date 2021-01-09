@@ -169,15 +169,17 @@ int ModuleResolver::cmiResponse(Cody::Server *S, std::string &Module) {
   return 0;
 }
 
-int ModuleResolver::ModuleExportRequest(Cody::Server *S, std::string &Module) {
+int ModuleResolver::ModuleExportRequest(Cody::Server *S, Cody::Flags,
+                                        std::string &Module) {
   return cmiResponse(S, Module);
 }
 
-int ModuleResolver::ModuleImportRequest(Cody::Server *S, std::string &Module) {
+int ModuleResolver::ModuleImportRequest(Cody::Server *S, Cody::Flags,
+                                        std::string &Module) {
   return cmiResponse(S, Module);
 }
 
-int ModuleResolver::IncludeTranslateRequest(Cody::Server *S,
+int ModuleResolver::IncludeTranslateRequest(Cody::Server *S, Cody::Flags,
                                             std::string &Include) {
   auto Iter = Map.find(Include);
   if (Iter == Map.end() && DefaultTranslate) {
