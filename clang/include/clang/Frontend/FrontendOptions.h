@@ -147,6 +147,7 @@ private:
   Language Lang;
   unsigned Fmt : 3;
   unsigned Preprocessed : 1;
+  unsigned Header : 1;
 
 public:
   /// The input file format.
@@ -157,12 +158,13 @@ public:
   };
 
   constexpr InputKind(Language L = Language::Unknown, Format F = Source,
-                      bool PP = false)
-      : Lang(L), Fmt(F), Preprocessed(PP) {}
+                      bool PP = false, bool HD = false)
+      : Lang(L), Fmt(F), Preprocessed(PP), Header(HD) {}
 
   Language getLanguage() const { return static_cast<Language>(Lang); }
   Format getFormat() const { return static_cast<Format>(Fmt); }
   bool isPreprocessed() const { return Preprocessed; }
+  bool isHeader() const { return Header; }
 
   /// Is the input kind fully-unknown?
   bool isUnknown() const { return Lang == Language::Unknown && Fmt == Source; }
@@ -173,11 +175,15 @@ public:
   }
 
   InputKind getPreprocessed() const {
-    return InputKind(getLanguage(), getFormat(), true);
+    return InputKind(getLanguage(), getFormat(), true, isHeader());
+  }
+
+  InputKind getHeader() const {
+    return InputKind(getLanguage(), getFormat(), isPreprocessed(), true);
   }
 
   InputKind withFormat(Format F) const {
-    return InputKind(getLanguage(), F, isPreprocessed());
+    return InputKind(getLanguage(), F, isPreprocessed(), isHeader());
   }
 };
 
@@ -212,6 +218,7 @@ public:
   bool isFile() const { return !isBuffer(); }
   bool isBuffer() const { return Buffer != None; }
   bool isPreprocessed() const { return Kind.isPreprocessed(); }
+  bool isHeader() const { return Kind.isHeader(); }
 
   StringRef getFile() const {
     assert(isFile());
