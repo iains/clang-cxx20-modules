@@ -84,7 +84,8 @@ public:
 public:
   void setModuleRepositoryName (const char *R);
   std::string maybeAddRepoPrefix(std::string ModPathIn);
-  static ModuleClient *openModuleClient(SourceLocation Loc, const char *Option,
+  static ModuleClient *openModuleClient(SourceLocation Loc,
+                                        std::string Option,
                                         char const *ProgName);
   static void closeModuleClient(SourceLocation Loc, ModuleClient *);
 };
