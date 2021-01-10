@@ -764,6 +764,34 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
   HasBegunSourceFile = true;
 
   // Initialize the main file entry.
+  if (Input.getKind().isHeaderUnit() && !Input.getKind().isPreprocessed() &&
+      Input.getKind().getHeaderUnit() != InputKind::HeaderUnit_Abs) {
+    // If this is a header unit source file that needs to be found within
+    // the preprocessor search paths, then figure this out now (we want the
+    // full path to be the module name to avoid ambiguity).
+    assert(CI.hasPreprocessor() && CI.getLangOpts().Modules &&
+           "trying to build a header unit without a Pre-proc or modules");
+    HeaderSearch& HS = CI.getPreprocessor().getHeaderSearchInfo();
+    StringRef InputFile = Input.getFile();
+    const DirectoryLookup *CurDir = nullptr;
+    Optional<FileEntryRef> FE = HS.LookupFile(
+        InputFile, SourceLocation(),
+        /*Angled*/ Input.getKind().getHeaderUnit() == InputKind::HeaderUnit_System, nullptr,
+        CurDir, None,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+    if (!FE) {
+        CI.getDiagnostics().Report(diag::err_module_header_file_not_found)
+            << InputFile;
+          return false;
+    }
+    StringRef NewName = FE->getFileEntry().getName();
+    InputKind NewKind = Input.getKind().withHeaderUnit(InputKind::HeaderUnit_Abs);
+    Input = FrontendInputFile(NewName, NewKind, Input.isSystem());
+    // Name the header unit module for the file, for this version.
+    CI.getLangOpts().ModuleName = std::string(NewName);
+    CI.getLangOpts().CurrentModule = std::string(NewName);
+  }
+
   if (!CI.InitializeSourceManager(Input))
     goto failure;
 
