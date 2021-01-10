@@ -13,6 +13,7 @@
 #include "clang/Basic/SourceLocation.h"
 
 #include "clang/Frontend/ModuleMapper.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/Path.h"
 
 using namespace clang;
@@ -90,10 +91,22 @@ static ModuleClient *spawn_mapper_program(char const **errmsg,
 #endif
 
 ModuleClient *ModuleClient::openModuleClient(SourceLocation /*Loc*/,
-                                             const char * /*O*/,
+                                             std::string MapperInvocation,
                                              char const * /*FullProgramName*/) {
   ModuleClient *C = nullptr;
   std::string Ident;
+  if (!MapperInvocation.empty()) {
+
+    auto MaybeIdentMarker = MapperInvocation.find_last_of('?');
+    if (MaybeIdentMarker != MapperInvocation.npos) {
+      Ident = MapperInvocation.substr(MaybeIdentMarker + 1);
+      MapperInvocation.erase(MaybeIdentMarker);
+    }
+
+//    llvm::dbgs() << MapperInvocation << " Ident : " << Ident << "\n";
+  } //else {
+//    llvm::dbgs() << "empty mapper client invocation \n";
+//  }
 #if NOT_YET
   std::string Name;
   char const *errmsg = nullptr;
