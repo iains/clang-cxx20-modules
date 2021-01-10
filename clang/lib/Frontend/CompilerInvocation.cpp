@@ -2713,24 +2713,34 @@ static bool ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
   }
 
   InputKind DashX(Language::Unknown);
-  bool IKIsSystemHeader = false;
   if (const Arg *A = Args.getLastArg(OPT_x)) {
     StringRef XValue = A->getValue();
 
-    // Parse suffixes: '<lang>(-header|[-module-map][-cpp-output])'.
+    // Parse suffixes:
+    // '<lang>(-[{header-unit,user,system}-]header|[-module-map][-cpp-output])'.
     // FIXME: Supporting '<lang>-header-cpp-output' would be useful.
     bool Preprocessed = XValue.consume_back("-cpp-output");
     bool ModuleMap = XValue.consume_back("-module-map");
-    IsHeaderFile = !Preprocessed && !ModuleMap &&
-                   XValue != "precompiled-header" &&
-                   XValue.consume_back("-header");
+    // Detect and consume the header indicator.
+    bool IsHeader = XValue != "precompiled-header" &&
+                    XValue.consume_back("-header");
 
-    bool IsPreprocessedHeader = Preprocessed && XValue.consume_back("-header");
-    // The user or system designation applies to both original source and the
-    // preprocessed output from those.
-    XValue.consume_back("-user");
-    IKIsSystemHeader = (IsHeaderFile || IsPreprocessedHeader) &&
-                       XValue.consume_back("-system");
+    // If we have c++-{user,system}-header, that indicates a header unit input
+    // likewise, if the user put -fmodule-header together with a header with an
+    // absolute path (header-unit-header).
+    InputKind::HeaderUnitKind HUK = InputKind::HeaderUnit_None;
+    if (IsHeader || Preprocessed) {
+      HUK = XValue.consume_back("-header-unit") ? InputKind::HeaderUnit_Abs
+                                                : HUK;
+      HUK = XValue.consume_back("-system") ? InputKind::HeaderUnit_System : HUK;
+      HUK = XValue.consume_back("-user") ? InputKind::HeaderUnit_User : HUK;
+    }
+
+    // The value set by this processing is an un-preprocessed source which is
+    // not intended to be a module map or header unit.
+    IsHeaderFile = IsHeader && !Preprocessed && !ModuleMap &&
+                   HUK == InputKind::HeaderUnit_None;
+ 
     // Principal languages.
     DashX = llvm::StringSwitch<InputKind>(XValue)
                 .Case("c", Language::C)
@@ -2746,15 +2756,16 @@ static bool ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
 
     // "objc[++]-cpp-output" is an acceptable synonym for
     // "objective-c[++]-cpp-output".
-    if (DashX.isUnknown() && Preprocessed && !IsHeaderFile && !ModuleMap)
+    if (DashX.isUnknown() && Preprocessed && !IsHeaderFile && !ModuleMap &&
+        HUK == InputKind::HeaderUnit_None)
       DashX = llvm::StringSwitch<InputKind>(XValue)
                   .Case("objc", Language::ObjC)
                   .Case("objc++", Language::ObjCXX)
                   .Default(Language::Unknown);
 
     // Some special cases cannot be combined with suffixes.
-    if (DashX.isUnknown() && !Preprocessed && !ModuleMap &&
-        !IsHeaderFile && !IsPreprocessedHeader)
+    if (DashX.isUnknown() && !Preprocessed && !IsHeaderFile && !ModuleMap &&
+        HUK == InputKind::HeaderUnit_None)
       DashX = llvm::StringSwitch<InputKind>(XValue)
                   .Case("cpp-output", InputKind(Language::C).getPreprocessed())
                   .Case("assembler-with-cpp", Language::Asm)
@@ -2769,8 +2780,12 @@ static bool ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
 
     if (Preprocessed)
       DashX = DashX.getPreprocessed();
+    // A regular header is considered mutually exclusive with a header unit
+    // one
     if (IsHeaderFile)
       DashX = DashX.getHeader();
+    else if (HUK != InputKind::HeaderUnit_None)
+      DashX = DashX.withHeaderUnit(HUK);
     if (ModuleMap)
       DashX = DashX.withFormat(InputKind::ModuleMap);
   }
@@ -2780,9 +2795,15 @@ static bool ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
   Opts.Inputs.clear();
   if (Inputs.empty())
     Inputs.push_back("-");
+
+  assert ((DashX.getHeaderUnit() == InputKind::HeaderUnit_None ||
+           Inputs.size() == 1) &&
+          "Expected only one input file for header unit");
+
   for (unsigned i = 0, e = Inputs.size(); i != e; ++i) {
     InputKind IK = DashX;
     if (IK.isUnknown()) {
+      // ??? : Why not in the driver?
       IK = FrontendOptions::getInputKindForExtension(
         StringRef(Inputs[i]).rsplit('.').second);
       // FIXME: Warn on this?
@@ -2802,7 +2823,7 @@ static bool ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
       IsSystem = Opts.IsSystemModule;
     }
 
-    Opts.Inputs.emplace_back(std::move(Inputs[i]), IK, IsSystem || IKIsSystemHeader);
+    Opts.Inputs.emplace_back(std::move(Inputs[i]), IK, IsSystem);
   }
 
   Opts.DashX = DashX;
@@ -3799,6 +3820,20 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
                             : Args.hasArg(OPT_mlong_double_64) ? 64 : 0;
   if (Opts.FastRelaxedMath)
     Opts.setDefaultFPContractMode(LangOptions::FPM_Fast);
+
+//  Opts.XLPragmaPack = Args.hasArg(OPT_fxl_pragma_pack);
+
+  if (IK.getHeaderUnit() != InputKind::HeaderUnit_None)
+    // We should only have one input.
+    // FIXME: is it guaranteed it can't be a buffer, and should we find the
+    // basename.
+    Opts.ModuleName = std::string(FEOpts.Inputs[0].getFile());
+  else
+    Opts.ModuleName = std::string(Args.getLastArgValue(OPT_fmodule_name_EQ));
+//???  Opts.CurrentModule = Opts.ModuleName;
+
+//???  Opts.ModuleFeatures = Args.getAllArgValues(OPT_fmodule_feature);
+
   llvm::sort(Opts.ModuleFeatures);
 
   // -mrtd option
