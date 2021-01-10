@@ -388,7 +388,7 @@ bool GenerateHeaderUnitAction::BeginSourceFileAction(
   }
 
   // Make a module map entry for compat.
-  Module::Header H{HeaderName, &FE->getFileEntry()};
+  Module::Header H{HeaderName, *FE};
   HS.getModuleMap().createHeaderUnit(CI.getLangOpts().CurrentModule, H);
 
   // Get the module mapper.
