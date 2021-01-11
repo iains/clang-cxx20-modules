@@ -14,7 +14,12 @@
 
 #include "clang/Frontend/ModuleMapper.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/Format.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include <fcntl.h>
+#include <unistd.h>
 
 using namespace clang;
 
@@ -102,124 +107,108 @@ ModuleClient *ModuleClient::openModuleClient(SourceLocation /*Loc*/,
       Ident = MapperInvocation.substr(MaybeIdentMarker + 1);
       MapperInvocation.erase(MaybeIdentMarker);
     }
+  }
 
-//    llvm::dbgs() << MapperInvocation << " Ident : " << Ident << "\n";
-  } //else {
-//    llvm::dbgs() << "empty mapper client invocation \n";
-//  }
-#if NOT_YET
+  // Parse supported invocation strings.
   std::string Name;
   char const *errmsg = nullptr;
-  unsigned Line = 0;
+  if (!MapperInvocation.empty()) {
+    switch (MapperInvocation[0]) {
+    default:
+      // file or hostName:port
+      {
+        Name = MapperInvocation;
+        auto colon = Name.find_last_of(':');
+        if (colon != Name.npos) {
+          char const *cptr = Name.c_str() + colon;
+          char *endp;
+          unsigned port = strtoul(cptr + 1, &endp, 10);
 
-  if (O && O[0]) {
-    /* Maybe a local or ipv6 address.  */
-    Name = O;
-    auto last = Name.find_last_of('?');
-    if (last != Name.npos) {
-      ident = Name.substr(last + 1);
-      Name.erase(last);
-    }
+          if (port && endp != cptr + 1 && !*endp) {
+            Name[colon] = 0;
+            int Fd = Cody::OpenInet6(&errmsg, Name.c_str(), port);
+            Name[colon] = ':';
 
-    if (Name.size()) {
-      switch (Name[0]) {
-      case '<':
-        // <from>to or <>fromto, or <>
-        {
-          int fd_from = -1, fd_to = -1;
-          char const *ptr = Name.c_str();
-          char *eptr;
-
-          fd_from = strtoul(++ptr, &eptr, 0);
-          if (*eptr == '>') {
-            ptr = eptr;
-            fd_to = strtoul(++ptr, &eptr, 0);
-            if (eptr != ptr && ptr == Name.c_str() + 1)
-              fd_from = fd_to;
-          }
-
-          if (*eptr)
-            errmsg = "parsing";
-          else {
-            if (Name.size() == 2) {
-              fd_from = fileno(stdin);
-              fd_to = fileno(stdout);
-            }
-            c = new ModuleClient(fd_from, fd_to);
+            if (Fd >= 0)
+              C = new ModuleClient(Fd, Fd);
+            else if (errmsg)
+    llvm::dbgs() << " Failed " << errmsg << " " << Name <<"\n";
+            else
+    llvm::dbgs() << " Mapping file : " << Name << "\n";
           }
         }
-        break;
+      }
+      break;
+    case '*':
+      llvm::dbgs() << " openModuleClient auto : " << MapperInvocation << "\n";
+      break;
+    case '<': // <from>to or <>fromto, or <>
+      {
+        int FdFrom = -1, FdTo = -1;
+        char const *P = MapperInvocation.c_str();
+        char *E;
 
-      case '=':
-        // =localsocket
-        {
-          int fd = Cody::OpenLocal(&errmsg, Name.c_str() + 1);
-          if (fd >= 0)
-            c = new ModuleClient(fd, fd);
+        FdFrom = strtoul(++P, &E, 0);
+        if (*E == '>') {
+          P = E;
+          FdTo = strtoul(++P, &E, 0);
+          if (E != P && P == MapperInvocation.c_str() + 1)
+            FdFrom = FdTo;
         }
-        break;
 
+        if (*E) {
+          llvm::dbgs() << " openModuleClient syntax error : " << MapperInvocation << "\n";
+          break;
+        } else {
+          if (MapperInvocation.size() == 2) {
+            FdFrom = fileno(stdin);
+            FdTo = fileno(stdout);
+          }
+          C = new ModuleClient(FdFrom, FdTo);
+        }
+      }
+      break;
+    case '=': // =localsocket
+      {
+        int Fd = Cody::OpenLocal(&errmsg, MapperInvocation.c_str() + 1);
+        if (Fd >= 0)
+          C = new ModuleClient(Fd, Fd);
+      }
+      break;
+#if NOT_YET
       case '|':
         // |program and args
         c = spawn_mapper_program(&errmsg, Name, full_program_Name);
         break;
-
-      default:
-        // file or hostName:port
-        {
-          auto colon = Name.find_last_of(':');
-          if (colon != Name.npos) {
-            char const *cptr = Name.c_str() + colon;
-            char *endp;
-            unsigned port = strtoul(cptr + 1, &endp, 10);
-
-            if (port && endp != cptr + 1 && !*endp) {
-              Name[colon] = 0;
-              int fd = Cody::OpenInet6(&errmsg, Name.c_str(), port);
-              Name[colon] = ':';
-
-              if (fd >= 0)
-                c = new ModuleClient(fd, fd);
-            }
-          }
-        }
-        break;
-      }
+#endif
     }
   }
-#endif
+
+  // We came here with Name containing either a hostname or filename
+  // possibly with some error message
   if (!C) {
     // Make a default in-process client
-    bool IsFile = false; //! errmsg && !Name.empty ();
+    bool IsFile = !errmsg && !Name.empty ();
     auto R = new ModuleResolver(!IsFile, true);
-#if NOT_YET
 
-    if (file) {
-      int fd = open(Name.c_str(), O_RDONLY | O_CLOEXEC);
-      if (fd < 0)
-        errmsg = "opening";
+    if (IsFile) {
+      int Fd = open(Name.c_str(), O_RDONLY | O_CLOEXEC);
+      if (Fd < 0)
+        llvm::dbgs() << " openModuleClient error opening : " << Name << "\n";
       else {
-        if (int l = r->read_tuple_file(fd, ident, false)) {
+        if (int l = R->readTupleFile(Fd, Ident, /*Force*/ false)) {
           if (l > 0)
-            line = l;
-          errmsg = "reading";
+             llvm::dbgs() << " openModuleClient error reading : " 
+                         << Name << llvm::format (" line %d\n", l);
         }
-
-        close(fd);
+        close(Fd);
       }
     } else
-#endif
       R->setRepo("pcm-cache");
 
     auto *S = new Cody::Server(R);
     C = new ModuleClient(S);
   }
-
-#if NOT_YET
-//  if (errmsg)
-//    error_at (loc, line ? G_("failed %s mapper %qs line %u")
-//	      : G_("failed %s mapper %qs"), errmsg, Name.c_str (), line);
-#endif
 
   // now wave hello!
   C->Cork();
@@ -229,9 +218,11 @@ ModuleClient *ModuleClient::openModuleClient(SourceLocation /*Loc*/,
 
   auto &Connect = Packets[0];
   if (Connect.GetCode() == Cody::Client::PC_ERROR)
-    assert(0 && "need an error message for failed handshake");
-  //    error_at (loc, "failed mapper handshake %s", connect.GetString ().c_str
-  //    ());
+    {
+      llvm::dbgs() << " openModuleClient failed handshake : " 
+                   << Connect.GetString() << "\n" ;
+      //assert(0 && "need an error message for failed handshake");
+    }
   assert (Connect.GetCode() == Cody::Client::PC_CONNECT &&
 	  "missed a check for some other client code");
 

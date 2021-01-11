@@ -43,14 +43,12 @@ public:
   bool setRepo(std::string &&Repo, bool Force = false);
   bool addMapping(std::string &&Module, std::string &&File, bool Force = false);
 
-#if NOT_YET
   // Return +ve line number of error, or -ve errno
-  int read_tuple_file(int fd, char const *prefix, bool force = false);
-  int read_tuple_file(int fd, std::string const &prefix, bool force = false) {
-    return read_tuple_file(fd, prefix.empty() ? nullptr : prefix.c_str(),
-                           force);
+  int readTupleFile(int Fd, char const *Prefix, bool Force = false);
+  int readTupleFile(int Fd, std::string const &Prefix, bool Force = false) {
+    return readTupleFile(Fd, Prefix.empty() ? nullptr : Prefix.c_str(),
+                         Force);
   }
-#endif
 
 public:
   // Virtual overriders, names are controlled by Cody::Resolver
@@ -77,9 +75,7 @@ class ModuleClient : public Cody::Client {
 
 public:
   ModuleClient(Cody::Server *S) : Client(S) {}
-#if NOT_YET
   ModuleClient(int FdFrom, int FdTo) : Client(FdFrom, FdTo) {}
-#endif
 
 public:
   void setModuleRepositoryName (const char *R);
