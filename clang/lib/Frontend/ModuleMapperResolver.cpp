@@ -14,6 +14,11 @@
 
 #include "clang/Frontend/ModuleMapper.h"
 
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/Format.h"
+#include "llvm/Support/Path.h"
+#include "llvm/Support/raw_ostream.h"
+
 using namespace clang;
 
 // C++
@@ -54,10 +59,9 @@ bool ModuleResolver::addMapping(std::string &&Module, std::string &&File,
   return Force;
 }
 
-#if NOT_YET
-int ModuleResolver::read_tuple_file(int fd, char const *prefix, bool force) {
+int ModuleResolver::readTupleFile(int Fd, char const *Prefix, bool Force) {
   struct stat stat;
-  if (fstat(fd, &stat) < 0)
+  if (fstat(Fd, &stat) < 0)
     return -errno;
 
   if (!stat.st_size)
@@ -65,14 +69,14 @@ int ModuleResolver::read_tuple_file(int fd, char const *prefix, bool force) {
 
   // Just map the file, we're gonna read all of it, so no need for
   // line buffering
-  void *buffer = mmap(nullptr, stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  if (buffer == MAP_FAILED)
+  void *Buff = mmap(nullptr, stat.st_size, PROT_READ, MAP_PRIVATE, Fd, 0);
+  if (Buff == MAP_FAILED)
     return -errno;
 
-  size_t prefix_len = prefix ? strlen(prefix) : 0;
+  size_t prefix_len = Prefix ? strlen(Prefix) : 0;
   unsigned lineno = 0;
 
-  for (char const *begin = reinterpret_cast<char const *>(buffer),
+  for (char const *begin = reinterpret_cast<char const *>(Buff),
                   *end = begin + stat.st_size, *eol;
        begin != end; begin = eol + 1) {
     lineno++;
@@ -97,7 +101,7 @@ int ModuleResolver::read_tuple_file(int fd, char const *prefix, bool force) {
       continue;
 
     if (pfx_search) {
-      if (size_t(space - pos) == prefix_len && std::equal(pos, space, prefix))
+      if (size_t(space - pos) == prefix_len && std::equal(pos, space, Prefix))
         pfx_search = false;
       pos = space;
       goto pfx_search;
@@ -106,25 +110,28 @@ int ModuleResolver::read_tuple_file(int fd, char const *prefix, bool force) {
     std::string Module(pos, space);
     while (*space == ' ' || *space == '\t')
       space++;
-    std::string file(space, eol);
+    std::string FileName(space, eol);
 
     if (Module[0] == '$') {
       if (Module == "$root")
-        set_repo(std::move(file));
+        setRepo(std::move(FileName));
+      else if (Module == "$default")
+        DefaultMap = true;
       else
         return lineno;
     } else {
-      if (file.empty())
-        file = GetCMIName(Module);
-      addMapping(std::move(Module), std::move(file), force);
+      if (FileName.empty())
+        FileName = GetCMIName(Module);
+     llvm::dbgs() << " readTupleFile : " << Module <<  " " << FileName << "\n";
+       
+      addMapping(std::move(Module), std::move(FileName), Force);
     }
   }
 
-  munmap(buffer, stat.st_size);
+  munmap(Buff, stat.st_size);
 
   return 0;
 }
-#endif
 
 char const *ModuleResolver::GetCMISuffix() { return "pcm"; }
 
@@ -152,6 +159,7 @@ int ModuleResolver::ModuleRepoRequest(Cody::Server *S) {
 }
 
 int ModuleResolver::cmiResponse(Cody::Server *S, std::string &Module) {
+  llvm::dbgs() << " cmiResponse module : " << Module <<  " file : " ;
   auto Iter = Map.find(Module);
   if (Iter == Map.end()) {
     std::string File;
@@ -162,9 +170,15 @@ int ModuleResolver::cmiResponse(Cody::Server *S, std::string &Module) {
   }
 
   if (Iter->second.empty())
+    {
+    llvm::dbgs() << "no such Module\n";
     S->ErrorResponse("no such Module");
+    }
   else
+    {
+    llvm::dbgs() << Iter->second << "\n";
     S->PathnameResponse(Iter->second);
+    }
 
   return 0;
 }
@@ -193,9 +207,8 @@ int ModuleResolver::IncludeTranslateRequest(Cody::Server *S, Cody::Flags,
     if (FdRepo >= 0 || Repo.empty()) {
       auto File = GetCMIName(Include);
       struct stat Statbuf;
-      if (fstatat(Repo.empty() ? AT_FDCWD : FdRepo, File.c_str(), &Statbuf, 0) <
-              0 ||
-          !S_ISREG(Statbuf.st_mode))
+      if (fstatat(Repo.empty() ? AT_FDCWD : FdRepo, File.c_str(), &Statbuf, 0)
+           < 0 || !S_ISREG(Statbuf.st_mode))
         // Mark as not present
         File.clear();
       auto Res = Map.emplace(Include, File);
