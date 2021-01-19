@@ -1628,11 +1628,11 @@ bool CompilerInstance::maybeAddModuleForFile(SourceLocation IncLoc,
                                              StringRef FileName,
                                              bool MissingIsError) {
   ModuleClient *MC = getMapper(IncLoc);
-  MC->Cork();
-  MC->ModuleImport(FileName.str());
-  auto Response = MC->Uncork();
-  if (Response[0].GetCode () == Cody::Client::PC_PATHNAME) {
-    std::string ModFile = MC->maybeAddRepoPrefix(Response[0].GetString());
+  if (!MC)
+    return false;
+
+  std::string ModFile;
+  if (MC->cmiNameForFile(FileName.str(), ModFile)) {
     // When processing a lazy load in response to parsing a #include
     // directive, for example, an absent or unreadable module is not an
     // error.
@@ -1645,9 +1645,7 @@ bool CompilerInstance::maybeAddModuleForFile(SourceLocation IncLoc,
     }
     if (loadModuleFile(ModFile))
       return true;
-  } else
-    assert(Response[0].GetCode () == Cody::Client::PC_ERROR &&
-           "mapper response; not a path and not an error?");
+  }
   return false;
 }
 
