@@ -1873,7 +1873,8 @@ CompilerInstance::loadModule(SourceLocation ImportLoc,
 
   // If we don't already have information on this module, load the module now.
   Module *Module = nullptr;
-  ModuleMap &MM = getPreprocessor().getHeaderSearchInfo().getModuleMap();
+  HeaderSearch &HS = getPreprocessor().getHeaderSearchInfo();
+  ModuleMap &MM = HS.getModuleMap();
   if (auto MaybeModule = MM.getCachedModuleLoad(*Path[0].first)) {
     // Use the cached result, which may be nullptr.
     Module = *MaybeModule;
@@ -1891,6 +1892,15 @@ CompilerInstance::loadModule(SourceLocation ImportLoc,
     //  return ModuleLoadResult();
     //}
     MM.cacheModuleLoad(*Path[0].first, Module);
+ } else if (ModuleClient *MC = getMapper(ImportLoc)) {
+    std::string ModFile;
+    if (!MC->cmiNameForFile(ModuleName.str(), ModFile))
+      return ModuleLoadResult();
+    if (!loadModuleFile(ModFile)) 
+      return ModuleLoadResult();
+    Module = HS.lookupModule(ModuleName, true, !IsInclusionDirective);
+    if (!Module)
+      return Module;
   } else {
     ModuleLoadResult Result = findOrCompileModuleAndReadAST(
         ModuleName, ImportLoc, ModuleNameLoc, IsInclusionDirective);
