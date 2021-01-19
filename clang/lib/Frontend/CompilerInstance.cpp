@@ -2220,6 +2220,10 @@ void CompilerInstance::setExternalSemaSource(
 }
 
 ModuleClient *CompilerInstance::createMapper(SourceLocation Loc) {
+  /* Don't try unless the user asked for a module mapper.  */
+  if (getLangOpts().ModuleMapperInvocation.empty())
+    return nullptr;
+
   ModuleClient *M =
     ModuleClient::openModuleClient(Loc, getLangOpts().ModuleMapperInvocation,
                                    "clang");
