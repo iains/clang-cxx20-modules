@@ -84,6 +84,11 @@ public:
                                         std::string Option,
                                         char const *ProgName);
   static void closeModuleClient(SourceLocation Loc, ModuleClient *);
+
+  /* Do the lookup for a header file named File.
+     Result is the mapped name when the return value is true.
+     Result is empty or an error message for false.  */
+  bool cmiNameForFile(std::string File, std::string &Result);
 };
 
 } // namespace clang
