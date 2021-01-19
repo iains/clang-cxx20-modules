@@ -281,8 +281,7 @@ void ModuleClient::setModuleRepositoryName (const char *R) {
   }
 }
 
-std::string ModuleClient::maybeAddRepoPrefix(std::string ModPathIn)
-{
+std::string ModuleClient::maybeAddRepoPrefix(std::string ModPathIn) {
   if (!ModuleRepositoryName.empty() &&
       !llvm::sys::path::is_absolute(ModPathIn)) {
     std::string Out = ModuleRepositoryName;
@@ -293,3 +292,23 @@ std::string ModuleClient::maybeAddRepoPrefix(std::string ModPathIn)
     return ModPathIn;
 }
 
+bool ModuleClient::cmiNameForFile(std::string File, std::string &Result) {
+  Cork();
+  ModuleImport(File);
+  auto Response = Uncork();
+  if (Response[0].GetCode () == Cody::Client::PC_PATHNAME) {
+    Result = maybeAddRepoPrefix(Response[0].GetString());
+    return true;
+  } else if (Response[0].GetCode () == Cody::Client::PC_ERROR) {
+    Result = Response[0].GetString();
+    llvm::dbgs() << " cmiNameForFile failed : " 
+                   << Result << "\n" ;
+    return false;
+  }
+
+//  assert(0 && "mapper response; not a path and not an error?");
+  llvm::dbgs() << " cmiNameForFile unexpected result : " 
+                   << Response[0].GetCode () << "\n" ;
+  Result = std::string();
+  return false;
+}
