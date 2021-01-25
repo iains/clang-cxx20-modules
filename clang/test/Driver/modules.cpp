@@ -67,7 +67,7 @@ export module foo;
 // CHECK-HEADER-UNIT-USE: FOO;
 FOO;
 
-// CHECK-HEADER-UNIT-USE: import header.{{.*}}foo.h{{.*}};
+// CHECK-HEADER-UNIT-USE: import {{.}}header.{{.*}}foo.h{{.*}}{{.}};
 import "foo.h";
 
 // CHECK-HEADER-UNIT-USE: BAR;
