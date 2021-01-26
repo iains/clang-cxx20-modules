@@ -319,6 +319,9 @@ bool ModuleClient::cmiNameForHeader(std::string Header, std::string &Result) {
   if (Response[0].GetCode () == Cody::Client::PC_PATHNAME) {
     Result = maybeAddRepoPrefix(Response[0].GetString());
     return true;
+  } else if (Response[0].GetCode () == Cody::Client::PC_BOOL) {
+    size_t Res = Response[0].GetInteger();
+    return Res != 0;
   } else if (Response[0].GetCode () == Cody::Client::PC_ERROR) {
     Result = Response[0].GetString();
     llvm::dbgs() << " cmiNameForHeader failed : " 
