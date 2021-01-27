@@ -1962,9 +1962,10 @@ Preprocessor::ImportAction Preprocessor::HandleHeaderIncludeOrImport(
     return {ImportAction::None};
   }
 
-  // If we have no module so far try looking it up and loading it lazily.
+  // If we have no module so far, and we are compiling for C++20 modules,
+  // try a lazy lookup / include translation.
   
-  if (File && !SuggestedModule &&
+  if (File && !SuggestedModule && LangOpts.CPlusPlusModules &&
       TheModuleLoader.maybeAddModuleForFile(FilenameLoc, File->getName(),
                                             IsImportDecl)) {
     File = LookupHeaderIncludeOrImport(
