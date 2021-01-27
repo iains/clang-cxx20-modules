@@ -14,6 +14,7 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/Lex/ModuleLoader.h"
 #include "llvm/Bitstream/BitstreamReader.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include <utility>
 
@@ -48,6 +49,39 @@ public:
   }
 };
 
+/// A PCHContainerGenerator that writes out the PCH to a flat file if the
+/// action is needed (and the filename is determined at the time the output
+/// is done).
+class RawPCHDeferredContainerGenerator : public ASTConsumer {
+  std::shared_ptr<PCHBuffer> Buffer;
+
+public:
+  RawPCHDeferredContainerGenerator(std::shared_ptr<PCHBuffer> Buffer)
+      : Buffer(std::move(Buffer)) {}
+
+  ~RawPCHDeferredContainerGenerator() override = default;
+
+  void HandleTranslationUnit(ASTContext &Ctx) override {
+    if (Buffer->IsComplete && !Buffer->PresumedFileName.empty()) {
+     llvm::dbgs () << "attempting to write" << Buffer->PresumedFileName << "\n";
+      std::error_code Error;
+      std::unique_ptr<raw_pwrite_stream> OS;
+      OS.reset(new llvm::raw_fd_ostream(Buffer->PresumedFileName, Error,
+                                          llvm::sys::fs::OpenFlags::OF_None));
+      if (!Error) {
+        // Make sure it hits disk now.
+        *OS << Buffer->Data;
+        OS->flush();
+      } // FIXME : deal with error case.
+    } else
+    llvm::dbgs () << "no module emitted\n";
+
+    // Free the space of the temporary buffer.
+    llvm::SmallVector<char, 0> Empty;
+    Buffer->Data = std::move(Empty);
+  }
+};
+
 } // anonymous namespace
 
 std::unique_ptr<ASTConsumer> RawPCHContainerWriter::CreatePCHContainerGenerator(
@@ -55,6 +89,13 @@ std::unique_ptr<ASTConsumer> RawPCHContainerWriter::CreatePCHContainerGenerator(
     const std::string &OutputFileName, std::unique_ptr<llvm::raw_pwrite_stream> OS,
     std::shared_ptr<PCHBuffer> Buffer) const {
   return std::make_unique<RawPCHContainerGenerator>(std::move(OS), Buffer);
+}
+
+std::unique_ptr<ASTConsumer> RawPCHContainerWriter::CreatePCHDeferredContainerGenerator(
+    CompilerInstance &CI, const std::string &MainFileName,
+    const std::string &OutputFileName, std::unique_ptr<llvm::raw_pwrite_stream> OS,
+    std::shared_ptr<PCHBuffer> Buffer) const {
+  return std::make_unique<RawPCHDeferredContainerGenerator>(Buffer);
 }
 
 StringRef
