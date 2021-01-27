@@ -70,7 +70,9 @@ void PCHGenerator::HandleTranslationUnit(ASTContext &Ctx) {
                       // only warn-as-error kind.
                       PP.getDiagnostics().hasUncompilableErrorOccurred(),
                       ShouldCacheASTInMemory);
-
+  // If we have a module, then set the filename for the deferred case.
+  if (Module)
+    Buffer->PresumedFileName = OutputFile;
   Buffer->IsComplete = true;
 }
 
