@@ -63,7 +63,7 @@ public:
 
   void HandleTranslationUnit(ASTContext &Ctx) override {
     if (Buffer->IsComplete && !Buffer->PresumedFileName.empty()) {
-     llvm::dbgs () << "attempting to write" << Buffer->PresumedFileName << "\n";
+//     llvm::dbgs () << "attempting to write" << Buffer->PresumedFileName << "\n";
       std::error_code Error;
       std::unique_ptr<raw_pwrite_stream> OS;
       OS.reset(new llvm::raw_fd_ostream(Buffer->PresumedFileName, Error,
@@ -73,8 +73,8 @@ public:
         *OS << Buffer->Data;
         OS->flush();
       } // FIXME : deal with error case.
-    } else
-    llvm::dbgs () << "no module emitted\n";
+    } //else
+    //llvm::dbgs () << "no module emitted\n";
 
     // Free the space of the temporary buffer.
     llvm::SmallVector<char, 0> Empty;

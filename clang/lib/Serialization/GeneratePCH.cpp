@@ -25,13 +25,14 @@ PCHGenerator::PCHGenerator(
     StringRef OutputFile, StringRef isysroot, std::shared_ptr<PCHBuffer> Buffer,
     ArrayRef<std::shared_ptr<ModuleFileExtension>> Extensions,
     bool AllowASTWithErrors, bool IncludeTimestamps,
-    bool ShouldCacheASTInMemory)
+    bool ShouldCacheASTInMemory, bool IsForCMI)
     : PP(PP), OutputFile(OutputFile), isysroot(isysroot.str()),
       SemaPtr(nullptr), Buffer(std::move(Buffer)), Stream(this->Buffer->Data),
       Writer(Stream, this->Buffer->Data, ModuleCache, Extensions,
              IncludeTimestamps),
       AllowASTWithErrors(AllowASTWithErrors),
-      ShouldCacheASTInMemory(ShouldCacheASTInMemory) {
+      ShouldCacheASTInMemory(ShouldCacheASTInMemory),
+      IsForCMI(IsForCMI) {
   this->Buffer->IsComplete = false;
 }
 
@@ -55,6 +56,13 @@ void PCHGenerator::HandleTranslationUnit(ASTContext &Ctx) {
       assert(hasErrors && "emitting module but current module doesn't exist");
       return;
     }
+  } else if (IsForCMI) {
+    Module = PP.getHeaderSearchInfo().lookupModule(
+        PP.getLangOpts().CurrentModule, /*AllowSearch*/ false);
+    // Fudge around that we can't tell an imported CMI from an implementation
+    // case yet.
+    if (Module && Module->IsFromModuleFile)
+      Module = nullptr;
   }
 
   // Errors that do not prevent the PCH from being written should not cause the
@@ -62,6 +70,9 @@ void PCHGenerator::HandleTranslationUnit(ASTContext &Ctx) {
   if (AllowASTWithErrors)
     PP.getDiagnostics().getClient()->clear();
 
+  if (IsForCMI && !Module) {
+    return;
+  }
   // Emit the PCH file to the Buffer.
   assert(SemaPtr && "No Sema?");
   Buffer->Signature =
@@ -70,8 +81,8 @@ void PCHGenerator::HandleTranslationUnit(ASTContext &Ctx) {
                       // only warn-as-error kind.
                       PP.getDiagnostics().hasUncompilableErrorOccurred(),
                       ShouldCacheASTInMemory);
-  // If we have a module, then set the filename for the deferred case.
-  if (Module)
+  if (IsForCMI && Module)
+    // If we have a module, then set the filename for the deferred case.
     Buffer->PresumedFileName = OutputFile;
   Buffer->IsComplete = true;
 }
