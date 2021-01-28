@@ -179,11 +179,14 @@ FrontendAction::CreateWrappedASTConsumer(CompilerInstance &CI,
   // Do we want to emit a CMI on demand if the source contains an export.
   // We do this if : C++20 modules, if the input is source, and not a HU
   // and we don't stop at the Preprocessor.
-  bool EmitCMI = CI.getLangOpts().CPlusPlusModules; 
-  EmitCMI = EmitCMI &&
-            IK.getFormat() == InputKind::Format::Source &&
-            !IK.isHeaderUnit() &&
-            !this->usesPreprocessorOnly();
+  bool EmitCMI = CI.getLangOpts().CPlusPlusModules &&
+                 IK.getFormat() == InputKind::Format::Source &&
+                 !IK.isHeaderUnit() &&
+                (CI.getFrontendOpts().ProgramAction == frontend::EmitObj ||
+                 CI.getFrontendOpts().ProgramAction == frontend::EmitAssembly ||
+                 CI.getFrontendOpts().ProgramAction == frontend::EmitBC ||
+                 CI.getFrontendOpts().ProgramAction == frontend::EmitLLVM) &&
+                 !this->usesPreprocessorOnly();
 
   // If there are no registered plugins and we do not need to emit a CMI, we 
   // do not need to wrap the consumer in a MultiplexConsumer.
@@ -241,12 +244,10 @@ FrontendAction::CreateWrappedASTConsumer(CompilerInstance &CI,
     Consumers.push_back(std::make_unique<PCHGenerator>(
       CI.getPreprocessor(), CI.getModuleCache(), XOut, Sysroot, Buffer,
       CI.getFrontendOpts().ModuleFileExtensions,
-      /*AllowASTWithErrors=*/
-      +CI.getFrontendOpts().AllowPCMWithCompilerErrors,
-      /*IncludeTimestamps=*/
-      +CI.getFrontendOpts().BuildingImplicitModule,
-      /*ShouldCacheASTInMemory=*/
-      +CI.getFrontendOpts().BuildingImplicitModule));
+      /*AllowASTWithErrors=*/false,
+      /*IncludeTimestamps=*/+CI.getFrontendOpts().BuildingImplicitModule,
+      /*ShouldCacheASTInMemory=*/true,
+      /*IsForCMI=*/true));
 
     // This writes the CMI (if required), but does not open any file unless
     // it's required.
