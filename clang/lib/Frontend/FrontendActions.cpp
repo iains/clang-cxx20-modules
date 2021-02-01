@@ -387,21 +387,21 @@ bool GenerateHeaderUnitAction::BeginSourceFileAction(
 
   // Notify the module mapper (if there is one) that we're about to build
   // and exporting module and fetch the output filename.
-  if (ModuleClient *MP = CI.getMapper(SourceLocation())) {
-    MP->Cork();
-    std::string CanonicalHUName =
-      MP->canonicalizeHeaderName(CI.getLangOpts().ModuleName);
-    MP->ModuleExport(CanonicalHUName);
-    auto Response = MP->Uncork();
+  if ((Mapper = CI.getMapper(SourceLocation()))) {
+    Mapper->Cork();
+    CanonicalHUName =
+      Mapper->canonicalizeHeaderName(CI.getLangOpts().ModuleName);
+    Mapper->ModuleExport(CanonicalHUName);
+    auto Response = Mapper->Uncork();
     if (Response[0].GetCode () == Cody::Client::PC_PATHNAME)
       CI.getFrontendOpts().OutputFile =
-        MP->maybeAddRepoPrefix(Response[0].GetString());
+        Mapper->maybeAddRepoPrefix(Response[0].GetString());
     else {
       assert(Response[0].GetCode () == Cody::Client::PC_ERROR &&
              "not a path and not an error?");
-      // random diagnostic for the sake of something...
+       // random diagnostic for the sake of something...
       CI.getDiagnostics().Report(diag::err_module_header_file_not_found)
-      << HeaderName + " : " + Response[0].GetString();
+      << CanonicalHUName + " : " + Response[0].GetString();
     }
   }
   return GenerateModuleAction::BeginSourceFileAction(CI);
@@ -416,6 +416,22 @@ GenerateHeaderUnitAction::CreateOutputFile(CompilerInstance &CI,
   return CI.createDefaultOutputFile(/*Binary=*/true, InFile, "pcm",
                                   /*RemoveFileOnSignal=*/true,
                                   /*CreateMissingDirectories=*/true);
+}
+
+void
+GenerateHeaderUnitAction::EndSourceFileAction() {
+  GenerateModuleAction::EndSourceFileAction();
+  if (Mapper) {
+    Mapper->Cork();
+    Mapper->ModuleCompiled(CanonicalHUName);
+    auto Response = Mapper->Uncork();
+    if (Response[0].GetCode () == Cody::Client::PC_OK)
+      ;
+    else {
+      assert(Response[0].GetCode () == Cody::Client::PC_ERROR &&
+             "not a path and not an error?");
+    }
+  }
 }
 
 SyntaxOnlyAction::~SyntaxOnlyAction() {
