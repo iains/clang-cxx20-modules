@@ -17,6 +17,7 @@ namespace clang {
 
 class Module;
 class FileEntry;
+class ModuleClient;
 
 //===----------------------------------------------------------------------===//
 // Custom Consumer Actions
@@ -161,10 +162,13 @@ private:
 
 class GenerateHeaderUnitAction : public GenerateModuleAction {
   InputKind IK;
+  std::string CanonicalHUName;
+  ModuleClient *Mapper;
 
 private:
   bool PrepareToExecuteAction(CompilerInstance &CI) override;
   bool BeginSourceFileAction(CompilerInstance &CI) override;
+  void EndSourceFileAction() override;
 
   std::unique_ptr<raw_pwrite_stream>
   CreateOutputFile(CompilerInstance &CI, StringRef InFile) override;
