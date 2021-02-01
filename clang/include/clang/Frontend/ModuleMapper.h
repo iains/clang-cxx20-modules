@@ -62,6 +62,8 @@ public:
                                   std::string &Module) override;
   virtual int IncludeTranslateRequest(Cody::Server *S, Cody::Flags,
                                       std::string &Include) override;
+  virtual int ModuleCompiledRequest (Cody::Server *S, Cody::Flags Flags,
+				     std::string &Module) override;
 
 private:
   virtual char const *GetCMISuffix() override;
