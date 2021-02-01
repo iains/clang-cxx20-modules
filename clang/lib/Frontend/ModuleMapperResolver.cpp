@@ -227,3 +227,13 @@ int ModuleResolver::IncludeTranslateRequest(Cody::Server *S, Cody::Flags,
 
   return 0;
 }
+
+// Let the resolver know we are done building a module that was started with
+// an ModuleExportRequest. 
+int ModuleResolver::ModuleCompiledRequest (Cody::Server *S, Cody::Flags,
+                                           std::string &ModName)
+{
+  llvm::dbgs() << ModName << " - done\n";
+  S->OKResponse();
+  return 0;
+}
