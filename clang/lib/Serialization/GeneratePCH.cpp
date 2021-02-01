@@ -56,32 +56,42 @@ void PCHGenerator::HandleTranslationUnit(ASTContext &Ctx) {
       assert(hasErrors && "emitting module but current module doesn't exist");
       return;
     }
-  } else if (IsForCMI) {
+  } else if (IsForCMI)
     Module = PP.getHeaderSearchInfo().lookupModule(
         PP.getLangOpts().CurrentModule, /*AllowSearch*/ false);
-    // Fudge around that we can't tell an imported CMI from an implementation
-    // case yet.
-    if (Module && Module->IsFromModuleFile)
-      Module = nullptr;
-  }
 
   // Errors that do not prevent the PCH from being written should not cause the
   // overall compilation to fail either.
   if (AllowASTWithErrors)
     PP.getDiagnostics().getClient()->clear();
 
-  if (IsForCMI && !Module) {
-    return;
-  }
-  // Emit the PCH file to the Buffer.
+  // (maybe) Emit the PCH file to the Buffer.
   assert(SemaPtr && "No Sema?");
+  if (IsForCMI) {
+    if (!Module)
+      return;
+    // An implementation will pull in the module for the CMI - this will be
+    // found for the lookup above (and will be an Interface - so we can't use
+    // that to tell if this is the implementation).  However Sema records the
+    // difference in the ModuleScopes.
+    if (SemaPtr->isModuleImplementation())
+      return;
+    // Fudge around that we can't tell an imported CMI from an implementation
+    // case yet.
+    if (Module && Module->IsFromModuleFile) {
+     llvm::dbgs() << "We should have figured this out by now.\n";
+     return;
+    }
+  }
+
   Buffer->Signature =
       Writer.WriteAST(*SemaPtr, OutputFile, Module, isysroot,
                       // For serialization we are lenient if the errors were
                       // only warn-as-error kind.
                       PP.getDiagnostics().hasUncompilableErrorOccurred(),
                       ShouldCacheASTInMemory);
-  if (IsForCMI && Module)
+
+  if (IsForCMI)
     // If we have a module, then set the filename for the deferred case.
     Buffer->PresumedFileName = OutputFile;
   Buffer->IsComplete = true;
