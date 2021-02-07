@@ -54,6 +54,8 @@ int bar ();
 
 #elif TU == 2
 
+module;
+
 export module AOK1;
 
 import B;
