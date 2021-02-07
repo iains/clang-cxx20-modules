@@ -1880,6 +1880,8 @@ CompilerInstance::loadModule(SourceLocation ImportLoc,
   Module *Module = nullptr;
   HeaderSearch &HS = getPreprocessor().getHeaderSearchInfo();
   ModuleMap &MM = HS.getModuleMap();
+  bool CXX20 = getLangOpts().CPlusPlusModules;
+  ModuleClient *MC = nullptr;
   if (auto MaybeModule = MM.getCachedModuleLoad(*Path[0].first)) {
     // Use the cached result, which may be nullptr.
     Module = *MaybeModule;
@@ -1888,6 +1890,14 @@ CompilerInstance::loadModule(SourceLocation ImportLoc,
     Module = PP->getHeaderSearchInfo().lookupModule(
         ModuleName, /*AllowSearch*/ true,
         /*AllowExtraModuleMapSearch*/ !IsInclusionDirective);
+    if (!Module && CXX20 && (MC = getMapper(ImportLoc))) {
+      // Try to find the module location using a module mapper, if its
+      // available.
+      std::string ModFile;
+      if (MC->cmiNameForFile(ModuleName.str(), ModFile) &&
+          loadModuleFile(ModFile))
+        Module = HS.lookupModule(ModuleName, true, !IsInclusionDirective);
+    }
     /// FIXME: perhaps we should (a) look for a module using the module name
     //  to file map (PrebuiltModuleFiles) and (b) diagnose if still not found?
     //if (Module == nullptr) {
@@ -1897,15 +1907,11 @@ CompilerInstance::loadModule(SourceLocation ImportLoc,
     //  return ModuleLoadResult();
     //}
     MM.cacheModuleLoad(*Path[0].first, Module);
- } else if (ModuleClient *MC = getMapper(ImportLoc)) {
+ } else if (CXX20 && (MC = getMapper(ImportLoc))) {
     std::string ModFile;
-    if (!MC->cmiNameForFile(ModuleName.str(), ModFile))
-      return ModuleLoadResult();
-    if (!loadModuleFile(ModFile)) 
-      return ModuleLoadResult();
-    Module = HS.lookupModule(ModuleName, true, !IsInclusionDirective);
-    if (!Module)
-      return Module;
+    if (MC->cmiNameForFile(ModuleName.str(), ModFile) &&
+        loadModuleFile(ModFile))
+      Module = HS.lookupModule(ModuleName, true, !IsInclusionDirective);
   } else {
     ModuleLoadResult Result = findOrCompileModuleAndReadAST(
         ModuleName, ImportLoc, ModuleNameLoc, IsInclusionDirective);
