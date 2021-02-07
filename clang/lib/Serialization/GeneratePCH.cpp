@@ -14,6 +14,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Frontend/ModuleMapper.h"
 #include "clang/Sema/SemaConsumer.h"
 #include "clang/Serialization/ASTWriter.h"
 #include "llvm/Bitstream/BitstreamWriter.h"
@@ -81,6 +82,18 @@ void PCHGenerator::HandleTranslationUnit(ASTContext &Ctx) {
     if (Module && Module->IsFromModuleFile) {
      llvm::dbgs() << "We should have figured this out by now.\n";
      return;
+    }
+    if (ModuleClient *MC = PP.getModuleLoader().getMapper(SourceLocation())) {
+      MC->Cork();
+      MC->ModuleExport(Module->Name);
+      auto Response = MC->Uncork();
+      if (Response[0].GetCode () == Cody::Client::PC_PATHNAME)
+        OutputFile = MC->maybeAddRepoPrefix(Response[0].GetString());
+      else {
+        assert(Response[0].GetCode () == Cody::Client::PC_ERROR &&
+             "not a path and not an error?");
+        llvm::dbgs() << "could not translate " << Module->Name << ".\n";
+      }
     }
   }
 
