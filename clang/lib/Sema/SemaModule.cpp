@@ -258,8 +258,9 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
   // Switch from the global module fragment (if any) to the named module.
   ModuleScopes.back().BeginLoc = StartLoc;
   ModuleScopes.back().Module = Mod;
-  ModuleScopes.back().ModuleInterface = 
-    (MDK != ModuleDeclKind::Implementation || IsPartition);
+  ModuleScopes.back().ModuleInterface =
+    MDK != ModuleDeclKind::Implementation ||
+    Mod->Kind == Module::ModulePartitionInterface;
   ModuleScopes.back().IsPartition = IsPartition;
   VisibleModules.setVisible(Mod, ModuleLoc);
 
