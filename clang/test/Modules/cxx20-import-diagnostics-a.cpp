@@ -96,9 +96,9 @@ import C; // expected-error {{imports must immediately follow the module declara
 #elif TU == 6
 
 module;
-// We can only have preprocessor commands here, which could include an include
+// We can only have preprocessor directives here, which permits an include-
 // translated header unit.  However those are identified specifically by the
-// preprocessor; non-preprocessed user code should not contain an import here.
+// preprocessor; non-preprocessed user code should not contain an 'import' here.
 import B; // expected-error {{module imports cannot be in the global module fragment}}
 
 export module D;
