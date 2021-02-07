@@ -1507,6 +1507,8 @@ Module *Decl::getOwningModuleForLinkage(bool IgnoreLinkage) const {
     return nullptr;
 
   case Module::ModuleInterfaceUnit:
+  case Module::ModulePartitionInterface:
+  case Module::ModulePartitionImplementation:
     return M;
 
   case Module::GlobalModuleFragment: {
