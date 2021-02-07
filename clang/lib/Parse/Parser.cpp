@@ -2344,15 +2344,14 @@ Parser::DeclGroupPtrTy Parser::ParseModuleDecl(bool IsFirstDecl) {
     return nullptr;
 
   // Parse the optional module-partition.
+  SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Partition;
   if (Tok.is(tok::colon)) {
     SourceLocation ColonLoc = ConsumeToken();
-    SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Partition;
     if (ParseModuleName(ModuleLoc, Partition, /*IsImport*/false))
       return nullptr;
-
     // FIXME: Support module partition declarations.
-    Diag(ColonLoc, diag::err_unsupported_module_partition)
-      << SourceRange(ColonLoc, Partition.back().second);
+    //Diag(ColonLoc, diag::err_unsupported_module_partition)
+   //   << SourceRange(ColonLoc, Partition.back().second);
     // Recover by parsing as a non-partition.
   }
 
@@ -2363,7 +2362,8 @@ Parser::DeclGroupPtrTy Parser::ParseModuleDecl(bool IsFirstDecl) {
 
   ExpectAndConsumeSemi(diag::err_module_expected_semi);
 
-  return Actions.ActOnModuleDecl(StartLoc, ModuleLoc, MDK, Path, IsFirstDecl);
+  return Actions.ActOnModuleDecl(StartLoc, ModuleLoc, MDK, Path,
+                                 Partition, IsFirstDecl);
 }
 
 /// Parse a module import declaration. This is essentially the same for
@@ -2395,6 +2395,7 @@ Decl *Parser::ParseModuleImport(SourceLocation AtLoc) {
 
   SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Path;
   Module *HeaderUnit = nullptr;
+  bool IsPartition = false;
 
   if (Tok.is(tok::header_name)) {
     // This is a header import that the preprocessor decided we should skip
@@ -2409,11 +2410,11 @@ Decl *Parser::ParseModuleImport(SourceLocation AtLoc) {
     SourceLocation ColonLoc = ConsumeToken();
     if (ParseModuleName(ImportLoc, Path, /*IsImport*/true))
       return nullptr;
-
+    IsPartition = true;
     // FIXME: Support module partition import.
-    Diag(ColonLoc, diag::err_unsupported_module_partition)
-      << SourceRange(ColonLoc, Path.back().second);
-    return nullptr;
+    //Diag(ColonLoc, diag::err_unsupported_module_partition)
+    //  << SourceRange(ColonLoc, Path.back().second);
+    //return nullptr;
   } else {
     if (ParseModuleName(ImportLoc, Path, /*IsImport*/true))
       return nullptr;
@@ -2435,7 +2436,8 @@ Decl *Parser::ParseModuleImport(SourceLocation AtLoc) {
     Import =
         Actions.ActOnModuleImport(StartLoc, ExportLoc, ImportLoc, HeaderUnit);
   else if (!Path.empty())
-    Import = Actions.ActOnModuleImport(StartLoc, ExportLoc, ImportLoc, Path);
+    Import = Actions.ActOnModuleImport(StartLoc, ExportLoc, ImportLoc,
+                                       Path, IsPartition);
   ExpectAndConsumeSemi(diag::err_module_expected_semi);
   if (Import.isInvalid())
     return nullptr;

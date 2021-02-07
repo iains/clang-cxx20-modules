@@ -1560,8 +1560,11 @@ llvm::DenseSet<Module*> &Sema::getLookupModules() {
 static bool isInCurrentModule(const Module *M, const LangOptions &LangOpts) {
   // If M is the global module fragment of a module that we've not yet finished
   // parsing, then it must be part of the current module.
+  // If it's a partition, then it must be visible to an importer (since only
+  // another partition or the named module can import it).
   return M->getTopLevelModuleName() == LangOpts.CurrentModule ||
-         (M->Kind == Module::GlobalModuleFragment && !M->Parent);
+         (M->Kind == Module::GlobalModuleFragment && !M->Parent) ||
+         M->isPartition();
 }
 
 bool Sema::hasVisibleMergedDefinition(NamedDecl *Def) {
