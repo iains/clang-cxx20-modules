@@ -457,6 +457,10 @@ bool Sema::MergeCXXFunctionDecl(FunctionDecl *New, FunctionDecl *Old,
                              ? New->getLexicalDeclContext()
                              : New->getDeclContext();
 
+  if (Old->getModuleOwnershipKind() == Decl::ModuleOwnershipKind::VisibleWhenImported &&
+      New->getModuleOwnershipKind() == Decl::ModuleOwnershipKind::ModulePrivate)
+   New->setModuleOwnershipKind(Decl::ModuleOwnershipKind::VisibleWhenImported);
+
   // Find the previous declaration for the purpose of default arguments.
   FunctionDecl *PrevForDefaultArgs = Old;
   for (/**/; PrevForDefaultArgs;

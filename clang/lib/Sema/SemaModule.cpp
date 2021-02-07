@@ -89,7 +89,8 @@ Sema::ActOnGlobalModuleFragmentDecl(SourceLocation ModuleLoc) {
 
 Sema::DeclGroupPtrTy
 Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
-                      ModuleDeclKind MDK, ModuleIdPath Path, bool IsFirstDecl) {
+                      ModuleDeclKind MDK, ModuleIdPath Path,
+                      ModuleIdPath Partition, bool IsFirstDecl) {
   assert((getLangOpts().ModulesTS || getLangOpts().CPlusPlusModules) &&
          "should only have module decl in Modules TS or C++20");
 
@@ -166,6 +167,20 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
     ModuleName += Piece.first->getName();
   }
 
+  bool IsPartition = false;
+  if (!Partition.empty()) {
+    ModuleName += ":";
+    bool First = true;
+    for (auto &Piece : Partition) {
+      if (!First)
+        ModuleName += ".";
+      else
+        First = false;
+      ModuleName += Piece.first->getName();
+    }
+    IsPartition = true;
+  }
+
   // If a module name was explicitly specified on the command line, it must be
   // correct.
   if (!getLangOpts().CurrentModule.empty() &&
@@ -198,6 +213,8 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
     // Create a Module for the module that we're defining.
     Mod = Map.createModuleForInterfaceUnit(ModuleLoc, ModuleName,
                                            GlobalModuleFragment);
+    if (IsPartition)
+      Mod->Kind = Module::ModulePartitionInterface;
     assert(Mod && "module creation should not fail");
     break;
   }
@@ -205,14 +222,26 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
   case ModuleDeclKind::Implementation:
     std::pair<IdentifierInfo *, SourceLocation> ModuleNameLoc(
         PP.getIdentifierInfo(ModuleName), Path[0].second);
-    Mod = getModuleLoader().loadModule(ModuleLoc, {ModuleNameLoc},
-                                       Module::AllVisible,
-                                       /*IsInclusionDirective=*/false);
-    if (!Mod) {
-      Diag(ModuleLoc, diag::err_module_not_defined) << ModuleName;
-      // Create an empty module interface unit for error recovery.
+    if (IsPartition) {
+      // Create an interface, but note that it is an implementation
+      // unit.
       Mod = Map.createModuleForInterfaceUnit(ModuleLoc, ModuleName,
                                              GlobalModuleFragment);
+      Mod->Kind = Module::ModulePartitionImplementation;    
+    } else {
+      // C++20 A module-declaration that contains neither an export-
+      // keyword nor a module-partition implicitly imports the primary
+      // module interface unit of the module as if by a module-import-
+      // declaration.
+      Mod = getModuleLoader().loadModule(ModuleLoc, {ModuleNameLoc},
+                                         Module::AllVisible,
+                                         /*IsInclusionDirective=*/false);
+      if (!Mod) {
+        Diag(ModuleLoc, diag::err_module_not_defined) << ModuleName;
+        // Create an empty module interface unit for error recovery.
+        Mod = Map.createModuleForInterfaceUnit(ModuleLoc, ModuleName,
+                                               GlobalModuleFragment);
+      }
     }
     break;
   }
@@ -229,7 +258,9 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
   // Switch from the global module fragment (if any) to the named module.
   ModuleScopes.back().BeginLoc = StartLoc;
   ModuleScopes.back().Module = Mod;
-  ModuleScopes.back().ModuleInterface = MDK != ModuleDeclKind::Implementation;
+  ModuleScopes.back().ModuleInterface = 
+    (MDK != ModuleDeclKind::Implementation || IsPartition);
+  ModuleScopes.back().IsPartition = IsPartition;
   VisibleModules.setVisible(Mod, ModuleLoc);
 
   // From now on, we have an owning module for all declarations we see.
@@ -254,6 +285,8 @@ Sema::ActOnPrivateModuleFragmentDecl(SourceLocation ModuleLoc,
   case Module::ModuleMapModule:
   case Module::GlobalModuleFragment:
   case Module::ModuleHeaderUnit:
+  case Module::ModulePartitionImplementation:
+  case Module::ModulePartitionInterface:
     Diag(PrivateLoc, diag::err_private_module_fragment_not_module);
     return nullptr;
 
@@ -309,11 +342,11 @@ Sema::ActOnPrivateModuleFragmentDecl(SourceLocation ModuleLoc,
 DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
                                    SourceLocation ExportLoc,
                                    SourceLocation ImportLoc,
-                                   ModuleIdPath Path) {
+                                   ModuleIdPath Path, bool IsPartition) {
   // Flatten the module path for a Modules TS module name.
   std::pair<IdentifierInfo *, SourceLocation> ModuleNameLoc;
+  std::string ModuleName;
   if (getLangOpts().ModulesTS) {
-    std::string ModuleName;
     for (auto &Piece : Path) {
       if (!ModuleName.empty())
         ModuleName += ".";
@@ -323,8 +356,39 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
     Path = ModuleIdPath(ModuleNameLoc);
   }
 
+  if (IsPartition) {
+    if (ModuleScopes.empty()) {
+      llvm::dbgs() << "Module partition at the top level";
+      return true;
+    }
+    if (ModuleScopes.back().ImplicitGlobalModuleFragment) {
+      llvm::dbgs() << "Module partition in global module fragment";
+      return true;
+    }
+    Module *NamedMod = ModuleScopes.back().Module;
+    if (ModuleScopes.back().IsPartition) {
+      // Get the named module name.
+      size_t P = NamedMod->Name.find_first_of(":");
+      ModuleName = NamedMod->Name.substr(0, P+1);
+    } else {
+      // This is the named module.
+      ModuleName =  NamedMod->Name;
+      ModuleName += ":";
+    }
+    bool First = true;
+    for (auto &Piece : Path) {
+      if (!First)
+        ModuleName += ".";
+      ModuleName += Piece.first->getName();
+      First = false;
+    }
+    ModuleNameLoc = {PP.getIdentifierInfo(ModuleName), Path[0].second};
+    Path = ModuleIdPath(ModuleNameLoc);
+  }
+  Module::NameVisibilityKind Vis = IsPartition ? Module::Hidden
+                                               : Module::AllVisible;
   Module *Mod =
-      getModuleLoader().loadModule(ImportLoc, Path, Module::AllVisible,
+      getModuleLoader().loadModule(ImportLoc, Path, Vis,
                                    /*IsInclusionDirective=*/false);
   if (!Mod)
     return true;
@@ -406,7 +470,6 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
     if (ThisModule &&
         ThisModule->Kind == Module::ModuleKind::ModuleHeaderUnit) {
       // Header Units implicitly export their imports.
-      //ThisModule->Exports.emplace_back(Mod, false);
       if (!ThisModule->Imports.contains (Mod))
         ThisModule->Imports.insert(Mod);
     }
@@ -455,7 +518,6 @@ void Sema::BuildModuleInclude(SourceLocation DirectiveLoc, Module *Mod) {
     if (ThisModule &&
         ThisModule->Kind == Module::ModuleKind::ModuleHeaderUnit) {
       // Header Units implicitly export their imports.
-      //ThisModule->Exports.emplace_back(Mod, false);
       if (!ThisModule->Imports.contains (Mod))
         ThisModule->Imports.insert(Mod);
     }
