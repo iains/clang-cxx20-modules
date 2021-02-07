@@ -10,10 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Frontend/CompilerInstance.h"
 #include "clang/Serialization/PCHContainerOperations.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/Lex/ModuleLoader.h"
 #include "llvm/Bitstream/BitstreamReader.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include <utility>
@@ -53,11 +55,12 @@ public:
 /// action is needed (and the filename is determined at the time the output
 /// is done).
 class RawPCHDeferredContainerGenerator : public ASTConsumer {
+  CompilerInstance &CI;
   std::shared_ptr<PCHBuffer> Buffer;
 
 public:
-  RawPCHDeferredContainerGenerator(std::shared_ptr<PCHBuffer> Buffer)
-      : Buffer(std::move(Buffer)) {}
+  RawPCHDeferredContainerGenerator(CompilerInstance &CI, std::shared_ptr<PCHBuffer> Buffer)
+      : CI(CI), Buffer(std::move(Buffer)) {}
 
   ~RawPCHDeferredContainerGenerator() override = default;
 
@@ -65,14 +68,35 @@ public:
     if (Buffer->IsComplete && !Buffer->PresumedFileName.empty()) {
 //     llvm::dbgs () << "attempting to write" << Buffer->PresumedFileName << "\n";
       std::error_code Error;
-      std::unique_ptr<raw_pwrite_stream> OS;
-      OS.reset(new llvm::raw_fd_ostream(Buffer->PresumedFileName, Error,
-                                          llvm::sys::fs::OpenFlags::OF_None));
+      StringRef Parent = llvm::sys::path::parent_path(Buffer->PresumedFileName);
+      Error = llvm::sys::fs::create_directory(Parent);
       if (!Error) {
-        // Make sure it hits disk now.
-        *OS << Buffer->Data;
-        OS->flush();
-      } // FIXME : deal with error case.
+        int FD;
+        Error = llvm::sys::fs::openFileForWrite(Buffer->PresumedFileName, FD);
+        if (!Error) {
+          std::unique_ptr<raw_pwrite_stream> OS;
+          OS.reset(new llvm::raw_fd_ostream(FD, /*shouldClose=*/true));
+          // Make sure it hits disk now.
+          *OS << Buffer->Data;
+          OS->flush();
+          if (ModuleClient *MC = CI.getMapper(SourceLocation())) {
+            MC->Cork();
+            MC->ModuleCompiled(Buffer->PresumedFileName);
+            auto Response = MC->Uncork();
+            if (Response[0].GetCode () == Cody::Client::PC_OK)
+              ;
+            else {
+              assert(Response[0].GetCode () == Cody::Client::PC_ERROR &&
+                      "not a path and not an error?");
+            }
+          }
+        }
+        else
+        llvm::dbgs() << " Problem creating : " << Buffer->PresumedFileName << "\n";
+      }
+      else {
+        llvm::dbgs() << " Problem creating dir : " << Parent << "\n";
+      }
     } //else
     //llvm::dbgs () << "no module emitted\n";
 
@@ -95,7 +119,7 @@ std::unique_ptr<ASTConsumer> RawPCHContainerWriter::CreatePCHDeferredContainerGe
     CompilerInstance &CI, const std::string &MainFileName,
     const std::string &OutputFileName, std::unique_ptr<llvm::raw_pwrite_stream> OS,
     std::shared_ptr<PCHBuffer> Buffer) const {
-  return std::make_unique<RawPCHDeferredContainerGenerator>(Buffer);
+  return std::make_unique<RawPCHDeferredContainerGenerator>(CI, Buffer);
 }
 
 StringRef
