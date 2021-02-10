@@ -2170,6 +2170,9 @@ private:
   /// The modules we're currently parsing.
   llvm::SmallVector<ModuleScope, 16> ModuleScopes;
 
+  /// The modules we imported directly.
+  llvm::SmallPtrSet<clang::Module *, 8> DirectModuleImports;
+
   /// Namespace definitions that we will export when they finish.
   llvm::SmallPtrSet<const NamespaceDecl*, 8> DeferredExportedNamespaces;
 
