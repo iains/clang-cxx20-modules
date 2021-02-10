@@ -74,8 +74,10 @@ void PCHGenerator::HandleTranslationUnit(ASTContext &Ctx) {
     // An implementation will pull in the module for the CMI - this will be
     // found for the lookup above (and will be an Interface - so we can't use
     // that to tell if this is the implementation).  However Sema records the
-    // difference in the ModuleScopes.
-    if (SemaPtr->isModuleImplementation())
+    // difference in the ModuleScopes.  We still want to emit the interface
+    // for partition implementations, however.
+    if (SemaPtr->isModuleImplementation() &&
+        Module->Kind != Module::ModulePartitionImplementation)
       return;
     // Fudge around that we can't tell an imported CMI from an implementation
     // case yet.

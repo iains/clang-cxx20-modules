@@ -231,6 +231,11 @@ public:
     /// module is imported.
     VisibleWhenImported,
 
+    /// This declaration has an owning module, and is visible when that
+    /// module is directly imported (but not when the module is transitively
+    /// imported).
+    VisibleWhenDirectlyImported,
+
     /// This declaration has an owning module, but is only visible to
     /// lookups that occur within that module.
     ModulePrivate
@@ -242,7 +247,7 @@ protected:
   /// traversed via DeclContext's decls_begin()/decls_end().
   ///
   /// The extra two bits are used for the ModuleOwnershipKind.
-  llvm::PointerIntPair<Decl *, 2, ModuleOwnershipKind> NextInContextAndBits;
+  llvm::PointerIntPair<Decl *, 3, ModuleOwnershipKind> NextInContextAndBits;
 
 private:
   friend class DeclContext;
