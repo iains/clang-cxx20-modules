@@ -413,6 +413,10 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
 
   checkModuleImportContext(*this, Mod, ImportLoc, CurContext);
 
+  // In some cases we need to know if an entity was present in a directly-
+  // imported module (as opposed to a transitive import).
+  DirectModuleImports.insert(Mod);
+
   // FIXME: we should support importing a submodule within a different submodule
   // of the same top-level module. Until we do, make it an error rather than
   // silently ignoring the import.

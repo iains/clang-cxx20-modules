@@ -580,6 +580,7 @@ static bool isExportedFromModuleInterfaceUnit(const NamedDecl *D) {
   switch (D->getModuleOwnershipKind()) {
   case Decl::ModuleOwnershipKind::Unowned:
   case Decl::ModuleOwnershipKind::ModulePrivate:
+  case Decl::ModuleOwnershipKind::VisibleWhenDirectlyImported:
     return false;
   case Decl::ModuleOwnershipKind::Visible:
   case Decl::ModuleOwnershipKind::VisibleWhenImported:
@@ -1530,6 +1531,8 @@ Module *Decl::getOwningModuleForLinkage(bool IgnoreLinkage) const {
     return nullptr;
 
   case Module::ModuleInterfaceUnit:
+    // For decls in partitions, inn principle, the owning module is really
+    // the named module, but that might not be available here.
   case Module::ModulePartitionInterface:
   case Module::ModulePartitionImplementation:
     return M;
