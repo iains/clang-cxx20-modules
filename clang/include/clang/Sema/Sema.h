@@ -2890,16 +2890,17 @@ public:
   ///        could be the location of an '@', 'export', or 'import'.
   /// \param ExportLoc The location of the 'export' keyword, if any.
   /// \param ImportLoc The location of the 'import' keyword.
-  /// \param Path The module access path.
+  /// \param NamePath The module toplevel name as an access path.
+  /// \param Partition The module partition name as an access path.
   DeclResult ActOnModuleImport(SourceLocation StartLoc,
                                SourceLocation ExportLoc,
                                SourceLocation ImportLoc,
-                               ModuleIdPath Path,
-                               bool IsPartition);
+                               ModuleIdPath NamePath,
+                               ModuleIdPath Partition = {});
   DeclResult ActOnModuleImport(SourceLocation StartLoc,
                                SourceLocation ExportLoc,
                                SourceLocation ImportLoc, Module *M,
-                               ModuleIdPath Path = {});
+                               ModuleIdPath NamePath = {});
 
   /// The parser has processed a module import translated from a
   /// #include or similar preprocessing directive.
