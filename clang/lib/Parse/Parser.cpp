@@ -2338,13 +2338,13 @@ Parser::DeclGroupPtrTy Parser::ParseModuleDecl(bool IsFirstDecl) {
   SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Partition;
   if (Tok.is(tok::colon)) {
     SourceLocation ColonLoc = ConsumeToken();
-    if (ParseModuleName(ModuleLoc, Partition, /*IsImport*/false))
+    if (!getLangOpts().CPlusPlusModules) 
+      Diag(ColonLoc, diag::err_unsupported_module_partition)
+           << SourceRange(ColonLoc, Partition.back().second);
+      // Recover by parsing as a non-partition.
+    else if (ParseModuleName(ModuleLoc, Partition, /*IsImport*/false))
       return nullptr;
-    // FIXME: Support module partition declarations.
-    //Diag(ColonLoc, diag::err_unsupported_module_partition)
-   //   << SourceRange(ColonLoc, Partition.back().second);
-    // Recover by parsing as a non-partition.
-  }
+   }
 
   // We don't support any module attributes yet; just parse them and diagnose.
   ParsedAttributesWithRange Attrs(AttrFactory);
@@ -2397,15 +2397,15 @@ Decl *Parser::ParseModuleImport(SourceLocation AtLoc) {
     // This is a header import that the preprocessor mapped to a module import.
     HeaderUnit = reinterpret_cast<Module *>(Tok.getAnnotationValue());
     ConsumeAnnotationToken();
-  } else if (getLangOpts().CPlusPlusModules && Tok.is(tok::colon)) {
+  } else if (Tok.is(tok::colon)) {
     SourceLocation ColonLoc = ConsumeToken();
-    if (ParseModuleName(ImportLoc, Path, /*IsImport*/true))
+    if (!getLangOpts().CPlusPlusModules) {
+      Diag(ColonLoc, diag::err_unsupported_module_partition)
+        << SourceRange(ColonLoc, Path.back().second);
+      return nullptr;
+    } else if (ParseModuleName(ImportLoc, Path, /*IsImport*/true))
       return nullptr;
     IsPartition = true;
-    // FIXME: Support module partition import.
-    //Diag(ColonLoc, diag::err_unsupported_module_partition)
-    //  << SourceRange(ColonLoc, Path.back().second);
-    //return nullptr;
   } else {
     if (ParseModuleName(ImportLoc, Path, /*IsImport*/true))
       return nullptr;
