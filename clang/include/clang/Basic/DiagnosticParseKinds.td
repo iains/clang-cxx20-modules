@@ -1478,7 +1478,7 @@ def err_private_module_fragment_expected_semi : Error<
   "expected ';' after private module fragment declaration">;
 def err_missing_before_module_end : Error<"expected %0 at end of module">;
 def err_unsupported_module_partition : Error<
-  "sorry, module partitions are not yet supported">;
+  "module partitions are only supported for C++20">;
 
 def err_export_empty : Error<"export declaration cannot be empty">;
 }
