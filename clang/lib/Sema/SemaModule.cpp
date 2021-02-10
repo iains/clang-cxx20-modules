@@ -54,6 +54,19 @@ static void checkModuleImportContext(Sema &S, Module *M,
   }
 }
 
+static std::string stringFromPath(ModuleIdPath Path) {
+  std::string Name;
+  if (Path.empty())
+    return Name;
+
+  for (auto &Piece : Path) {
+    if (!Name.empty())
+      Name += ".";
+    Name += Piece.first->getName();
+  }
+  return Name;
+}
+
 Sema::DeclGroupPtrTy
 Sema::ActOnGlobalModuleFragmentDecl(SourceLocation ModuleLoc) {
   if (!ModuleScopes.empty() &&
@@ -89,7 +102,7 @@ Sema::ActOnGlobalModuleFragmentDecl(SourceLocation ModuleLoc) {
 
 Sema::DeclGroupPtrTy
 Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
-                      ModuleDeclKind MDK, ModuleIdPath Path,
+                      ModuleDeclKind MDK, ModuleIdPath NamePath,
                       ModuleIdPath Partition, bool IsFirstDecl) {
   assert((getLangOpts().ModulesTS || getLangOpts().CPlusPlusModules) &&
          "should only have module decl in Modules TS or C++20");
@@ -160,33 +173,20 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
   // Flatten the dots in a module name. Unlike Clang's hierarchical module map
   // modules, the dots here are just another character that can appear in a
   // module name.
-  std::string ModuleName;
-  for (auto &Piece : Path) {
-    if (!ModuleName.empty())
-      ModuleName += ".";
-    ModuleName += Piece.first->getName();
-  }
-
-  bool IsPartition = false;
-  if (!Partition.empty()) {
+  std::string ModuleName = stringFromPath(NamePath);
+  bool IsPartition = !Partition.empty();
+  if (IsPartition) {
     ModuleName += ":";
-    bool First = true;
-    for (auto &Piece : Partition) {
-      if (!First)
-        ModuleName += ".";
-      else
-        First = false;
-      ModuleName += Piece.first->getName();
-    }
-    IsPartition = true;
+    ModuleName += stringFromPath(Partition);
   }
-
   // If a module name was explicitly specified on the command line, it must be
   // correct.
   if (!getLangOpts().CurrentModule.empty() &&
       getLangOpts().CurrentModule != ModuleName) {
-    Diag(Path.front().second, diag::err_current_module_name_mismatch)
-        << SourceRange(Path.front().second, Path.back().second)
+    Diag(NamePath.front().second, diag::err_current_module_name_mismatch)
+        << SourceRange(NamePath.front().second,
+                       IsPartition ? Partition.back().second
+                                   : NamePath.back().second)
         << getLangOpts().CurrentModule;
     return nullptr;
   }
@@ -200,7 +200,7 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
     // We can't have parsed or imported a definition of this module or parsed a
     // module map defining it already.
     if (auto *M = Map.findModule(ModuleName)) {
-      Diag(Path[0].second, diag::err_module_redefinition) << ModuleName;
+      Diag(NamePath[0].second, diag::err_module_redefinition) << ModuleName;
       if (M->DefinitionLoc.isValid())
         Diag(M->DefinitionLoc, diag::note_prev_module_definition);
       else if (Optional<FileEntryRef> FE = M->getASTFile())
@@ -221,7 +221,7 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
 
   case ModuleDeclKind::Implementation:
     std::pair<IdentifierInfo *, SourceLocation> ModuleNameLoc(
-        PP.getIdentifierInfo(ModuleName), Path[0].second);
+        PP.getIdentifierInfo(ModuleName), NamePath[0].second);
     if (IsPartition) {
       // Create an interface, but note that it is an implementation
       // unit.
@@ -343,58 +343,54 @@ Sema::ActOnPrivateModuleFragmentDecl(SourceLocation ModuleLoc,
 DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
                                    SourceLocation ExportLoc,
                                    SourceLocation ImportLoc,
-                                   ModuleIdPath Path, bool IsPartition) {
-  // Flatten the module path for a Modules TS module name.
+                                   ModuleIdPath NamePath,
+                                   ModuleIdPath Partition) {
+
+  bool IsPartition = !Partition.empty();
+  bool Cxx20Mode = getLangOpts().CPlusPlusModules || getLangOpts().ModulesTS;
+  assert ((!IsPartition || Cxx20Mode) &&
+          "partition seen in non-C++20 code?");
+  assert ((!IsPartition || NamePath.empty()) &&
+          "trying to import a fully qualified partition name?");
+
+  // For a C++20/Modules TS module name, flatten into a  single identifier
+  // with the source location of the first component.
   std::pair<IdentifierInfo *, SourceLocation> ModuleNameLoc;
-  std::string ModuleName;
-  if (getLangOpts().ModulesTS) {
-    for (auto &Piece : Path) {
-      if (!ModuleName.empty())
-        ModuleName += ".";
-      ModuleName += Piece.first->getName();
-    }
-    ModuleNameLoc = {PP.getIdentifierInfo(ModuleName), Path[0].second};
-    Path = ModuleIdPath(ModuleNameLoc);
-  }
 
   if (IsPartition) {
-    if (ModuleScopes.empty()) {
-      llvm::dbgs() << "Module partition at the top level";
-      return true;
-    }
-    if (ModuleScopes.back().ImplicitGlobalModuleFragment) {
-      llvm::dbgs() << "Module partition in global module fragment";
-      return true;
-    }
     Module *NamedMod = ModuleScopes.back().Module;
+    std::string ModuleName;
     if (ModuleScopes.back().IsPartition) {
-      // Get the named module name.
+      // We're importing a partition into a partition, find the name of the
+      // owning named module.
       size_t P = NamedMod->Name.find_first_of(":");
       ModuleName = NamedMod->Name.substr(0, P+1);
     } else {
-      // This is the named module.
+      // We're importing a partition into the named module itself (either the
+      // interface or an implementation TU).
       ModuleName =  NamedMod->Name;
       ModuleName += ":";
     }
-    bool First = true;
-    for (auto &Piece : Path) {
-      if (!First)
-        ModuleName += ".";
-      ModuleName += Piece.first->getName();
-      First = false;
-    }
-    ModuleNameLoc = {PP.getIdentifierInfo(ModuleName), Path[0].second};
-    Path = ModuleIdPath(ModuleNameLoc);
+    ModuleName += stringFromPath(Partition);
+    ModuleNameLoc = {PP.getIdentifierInfo(ModuleName), Partition[0].second};
+    Partition = ModuleIdPath(ModuleNameLoc);
+  } else if (Cxx20Mode) {
+    std::string ModuleName = stringFromPath(NamePath);
+    ModuleNameLoc = {PP.getIdentifierInfo(ModuleName), NamePath[0].second};
+    NamePath = ModuleIdPath(ModuleNameLoc);
   }
+
   Module::NameVisibilityKind Vis = IsPartition ? Module::Hidden
                                                : Module::AllVisible;
   Module *Mod =
-      getModuleLoader().loadModule(ImportLoc, Path, Vis,
-                                   /*IsInclusionDirective=*/false);
+      getModuleLoader().loadModule(ImportLoc,
+                                   IsPartition ? Partition : NamePath,
+                                   Vis, /*IsInclusionDirective=*/false);
   if (!Mod)
     return true;
 
-  return ActOnModuleImport(StartLoc, ExportLoc, ImportLoc, Mod, Path);
+  return ActOnModuleImport(StartLoc, ExportLoc, ImportLoc, Mod,
+                           IsPartition ? Partition : NamePath);
 }
 
 /// Determine whether \p D is lexically within an export-declaration.
@@ -408,10 +404,24 @@ static const ExportDecl *getEnclosingExportDecl(const Decl *D) {
 DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
                                    SourceLocation ExportLoc,
                                    SourceLocation ImportLoc,
-                                   Module *Mod, ModuleIdPath Path) {
+                                   Module *Mod, ModuleIdPath NamePath) {
   VisibleModules.setVisible(Mod, ImportLoc);
 
   checkModuleImportContext(*this, Mod, ImportLoc, CurContext);
+
+  // C++20 
+  // A module implementation unit of a module M that is not a module partition
+  // shall not contain a module-import-declaration nominating M.
+  // (for an implementation, the module interface is imported implicitly,
+  //  but that's handled in the module decl code).
+
+  if (getLangOpts().CPlusPlusModules && !ModuleScopes.empty() &&
+      ModuleScopes.back().Module->isModulePurview() &&
+      ModuleScopes.back().Module == Mod) {
+    Diag(ImportLoc, diag::err_module_self_import_cxx20)
+         << Mod->getFullModuleName()
+         << !ModuleScopes.back().ModuleInterface;
+  }
 
   // In some cases we need to know if an entity was present in a directly-
   // imported module (as opposed to a transitive import).
@@ -432,23 +442,30 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
         << Mod->getFullModuleName() << getLangOpts().CurrentModule;
   }
 
+//  CXX/module/module.interface/p2.cpp
+// assert ((!getLangOpts().CPlusPlusModules || !Mod->Parent) &&
+//          "unexpected module hierarchy in C++20 mode");
   SmallVector<SourceLocation, 2> IdentifierLocs;
-  Module *ModCheck = Mod;
-  for (unsigned I = 0, N = Path.size(); I != N; ++I) {
-    // If we've run out of module parents, just drop the remaining identifiers.
-    // We need the length to be consistent.
-    if (!ModCheck)
-      break;
-    ModCheck = ModCheck->Parent;
 
-    IdentifierLocs.push_back(Path[I].second);
-  }
-
-  // If this was a header import, pad out with dummy locations.
-  // FIXME: Pass in and use the location of the header-name token in this case.
-  if (Path.empty()) {
-    for (; ModCheck; ModCheck = ModCheck->Parent) {
+  if (NamePath.empty()) {
+    // If this was a header import, pad out with dummy locations.
+    // FIXME: Pass in and use the location of the header-name token in this
+    // case.
+    for (Module *ModCheck = Mod; ModCheck; ModCheck = ModCheck->Parent)
       IdentifierLocs.push_back(SourceLocation());
+  } else if (getLangOpts().CPlusPlusModules && !Mod->Parent) {
+    // A single identifier for the whole name.
+    IdentifierLocs.push_back(NamePath[0].second);
+  } else {
+    Module *ModCheck = Mod;
+    for (unsigned I = 0, N = NamePath.size(); I != N; ++I) {
+      // If we've run out of module parents, just drop the remaining identifiers.
+      // We need the length to be consistent.
+      if (!ModCheck)
+        break;
+      ModCheck = ModCheck->Parent;
+
+      IdentifierLocs.push_back(NamePath[I].second);
     }
   }
 

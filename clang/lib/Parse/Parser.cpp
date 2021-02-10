@@ -2392,7 +2392,8 @@ Decl *Parser::ParseModuleImport(SourceLocation AtLoc) {
   bool IsObjCAtImport = Tok.isObjCAtKeyword(tok::objc_import);
   SourceLocation ImportLoc = ConsumeToken();
 
-  SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Path;
+  SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> NamePath;
+  SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Partition;
   Module *HeaderUnit = nullptr;
   bool IsPartition = false;
 
@@ -2407,15 +2408,16 @@ Decl *Parser::ParseModuleImport(SourceLocation AtLoc) {
     ConsumeAnnotationToken();
   } else if (Tok.is(tok::colon)) {
     SourceLocation ColonLoc = ConsumeToken();
+    bool Err = ParseModuleName(ImportLoc, Partition, /*IsImport*/true);
     if (!getLangOpts().CPlusPlusModules) {
       Diag(ColonLoc, diag::err_unsupported_module_partition)
-        << SourceRange(ColonLoc, Path.back().second);
+        << SourceRange(ColonLoc, Partition.back().second);
       return nullptr;
-    } else if (ParseModuleName(ImportLoc, Path, /*IsImport*/true))
+    } else if (Err)
       return nullptr;
     IsPartition = true;
   } else {
-    if (ParseModuleName(ImportLoc, Path, /*IsImport*/true))
+    if (ParseModuleName(ImportLoc, NamePath, /*IsImport*/true))
       return nullptr;
   }
 
@@ -2434,9 +2436,9 @@ Decl *Parser::ParseModuleImport(SourceLocation AtLoc) {
   if (HeaderUnit)
     Import =
         Actions.ActOnModuleImport(StartLoc, ExportLoc, ImportLoc, HeaderUnit);
-  else if (!Path.empty())
+  else if (!NamePath.empty() || !Partition.empty())
     Import = Actions.ActOnModuleImport(StartLoc, ExportLoc, ImportLoc,
-                                       Path, IsPartition);
+                                       NamePath, Partition);
   ExpectAndConsumeSemi(diag::err_module_expected_semi);
   if (Import.isInvalid())
     return nullptr;
