@@ -168,10 +168,10 @@ bool Module::isAvailable(const LangOptions &LangOpts, const TargetInfo &Target,
       return false;
     }
   }
-
+#if 0 && THIS_ISNT_RIGHT
   if (Kind == Module::ModulePartitionImplementation)
     return false;
-
+#endif
   llvm_unreachable("could not find a reason why module is unavailable");
 }
 
