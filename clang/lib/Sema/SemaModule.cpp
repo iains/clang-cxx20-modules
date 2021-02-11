@@ -103,10 +103,12 @@ Sema::ActOnGlobalModuleFragmentDecl(SourceLocation ModuleLoc) {
 Sema::DeclGroupPtrTy
 Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
                       ModuleDeclKind MDK, ModuleIdPath NamePath,
-                      ModuleIdPath Partition, bool IsFirstDecl) {
+                      ModuleIdPath Partition, ModuleImportState &ImportState) {
   assert((getLangOpts().ModulesTS || getLangOpts().CPlusPlusModules) &&
          "should only have module decl in Modules TS or C++20");
 
+  bool IsFirstDecl = ImportState == ModuleImportState::FirstDecl;
+  ImportState = ModuleImportState::ImportAllowed;
   // A module implementation unit requires that we are not compiling a module
   // of any kind. A module interface unit requires that we are not compiling a
   // module map.
@@ -430,12 +432,11 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
   // FIXME: we should support importing a submodule within a different submodule
   // of the same top-level module. Until we do, make it an error rather than
   // silently ignoring the import.
-  // Import-from-implementation is valid in the Modules TS. FIXME: Should we
-  // warn on a redundant import of the current module?
   // FIXME: Import of a module from an implementation partition of the same
   // module is permitted.
   if (Mod->getTopLevelModuleName() == getLangOpts().CurrentModule &&
-      (getLangOpts().isCompilingModule() || !getLangOpts().ModulesTS)) {
+      (getLangOpts().isCompilingModule() ||
+       (!getLangOpts().ModulesTS && !getLangOpts().CPlusPlusModules))) {
     Diag(ImportLoc, getLangOpts().isCompilingModule()
                         ? diag::err_module_self_import
                         : diag::err_module_import_in_implementation)
