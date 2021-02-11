@@ -1479,6 +1479,14 @@ def err_private_module_fragment_expected_semi : Error<
 def err_missing_before_module_end : Error<"expected %0 at end of module">;
 def err_unsupported_module_partition : Error<
   "module partitions are only supported for C++20">;
+def err_import_not_allowed_here : Error<
+  "imports must be contiguous and immediately follow the module declaration">;
+def err_partition_import_outside_module : Error<
+  "module partition imports must be within a module purview">;
+def err_import_in_global_fragment : Error<
+  "module %select{|partition}0 imports cannot be in the global module fragment">;
+def err_import_in_private_fragment : Error<
+  "module %select{|partition}0 imports cannot be in the private module fragment">;
 
 def err_export_empty : Error<"export declaration cannot be empty">;
 }

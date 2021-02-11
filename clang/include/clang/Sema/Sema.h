@@ -2865,12 +2865,23 @@ public:
     Implementation, ///< 'module X;'
   };
 
+  /// An enumeration to represent the transition of states in parsing module
+  /// fragments and imports.
+  enum class ModuleImportState {
+    FirstDecl,
+    GlobalFragment,
+    ImportAllowed,
+    ImportFinished,
+    PrivateFragment,
+    NotACXX20Module
+  };
+
   /// The parser has processed a module-declaration that begins the definition
   /// of a module interface or implementation.
   DeclGroupPtrTy ActOnModuleDecl(SourceLocation StartLoc,
                                  SourceLocation ModuleLoc, ModuleDeclKind MDK,
                                  ModuleIdPath Path, ModuleIdPath Partition,
-                                 bool IsFirstDecl);
+                                 ModuleImportState &ImportState);
 
   /// The parser has processed a global-module-fragment declaration that begins
   /// the definition of the global module fragment of the current module unit.
