@@ -579,15 +579,20 @@ void Parser::DestroyTemplateIds() {
 ///                 top-level-declaration-seq[opt] private-module-fragment[opt]
 ///
 /// Note that in C, it is an error if there is no first declaration.
-bool Parser::ParseFirstTopLevelDecl(DeclGroupPtrTy &Result) {
+bool Parser::ParseFirstTopLevelDecl(DeclGroupPtrTy &Result,
+                                    Sema::ModuleImportState &ImportState) {
   Actions.ActOnStartOfTranslationUnit();
+
+  // For C++20 modules, a module decl must be the first in the TU.  We also
+  // need to track module imports.
+  ImportState = Sema::ModuleImportState::FirstDecl;
+  bool NoTopLevelDecls = ParseTopLevelDecl(Result, ImportState);
 
   // C11 6.9p1 says translation units must have at least one top-level
   // declaration. C++ doesn't have this restriction. We also don't want to
   // complain if we have a precompiled header, although technically if the PCH
   // is empty we should still emit the (pedantic) diagnostic.
   // If the main file is a header, we're only pretending it's a TU; don't warn.
-  bool NoTopLevelDecls = ParseTopLevelDecl(Result, true);
   if (NoTopLevelDecls && !Actions.getASTContext().getExternalSource() &&
       !getLangOpts().CPlusPlus && !getLangOpts().IsHeaderFile)
     Diag(diag::ext_empty_translation_unit);
@@ -601,7 +606,8 @@ bool Parser::ParseFirstTopLevelDecl(DeclGroupPtrTy &Result) {
 ///   top-level-declaration:
 ///           declaration
 /// [C++20]   module-import-declaration
-bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
+bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
+                               Sema::ModuleImportState &ImportState) {
   DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(*this);
 
   // Skip over the EOF token, flagging end of previous input for incremental
@@ -645,13 +651,12 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
 
   case tok::kw_module:
   module_decl:
-    Result = ParseModuleDecl(IsFirstDecl);
+    Result = ParseModuleDecl(ImportState);
     return false;
 
-  // tok::kw_import is handled by ParseExternalDeclaration. (Under the Modules
-  // TS, an import can occur within an export block.)
+  case tok::kw_import:
   import_decl: {
-    Decl *ImportDecl = ParseModuleImport(SourceLocation());
+    Decl *ImportDecl = ParseModuleImport(SourceLocation(), ImportState);
     Result = Actions.ConvertDeclToDeclGroup(ImportDecl);
     return false;
   }
@@ -672,12 +677,14 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
     Actions.ActOnModuleBegin(Tok.getLocation(), reinterpret_cast<Module *>(
                                                     Tok.getAnnotationValue()));
     ConsumeAnnotationToken();
+    ImportState = Sema::ModuleImportState::NotACXX20Module;
     return false;
 
   case tok::annot_module_end:
     Actions.ActOnModuleEnd(Tok.getLocation(), reinterpret_cast<Module *>(
                                                   Tok.getAnnotationValue()));
     ConsumeAnnotationToken();
+    ImportState = Sema::ModuleImportState::NotACXX20Module;
     return false;
 
   case tok::eof:
@@ -721,6 +728,14 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
   MaybeParseCXX11Attributes(attrs);
 
   Result = ParseExternalDeclaration(attrs);
+  // An empty Result might mean a line with ';' or some parsing error, ignore
+  // it.
+  if (Result) {
+    if(ImportState == Sema::ModuleImportState::FirstDecl)
+      ImportState = Sema::ModuleImportState::NotACXX20Module; // First decl was not modular.
+    else if (ImportState == Sema::ModuleImportState::ImportAllowed)
+      ImportState = Sema::ModuleImportState::ImportFinished; // Non-imports disallow further imports.
+  }
   return false;
 }
 
@@ -889,10 +904,11 @@ Parser::ParseExternalDeclaration(ParsedAttributesWithRange &attrs,
         CurParsedObjCImpl ? Sema::PCC_ObjCImplementation : Sema::PCC_Namespace);
     return nullptr;
   case tok::kw_import:
-    SingleDecl = ParseModuleImport(SourceLocation());
-    break;
+    llvm::dbgs() << "attributes not allowed here";
+    return nullptr;
   case tok::kw_export:
     if (getLangOpts().CPlusPlusModules || getLangOpts().ModulesTS) {
+      ProhibitAttributes(attrs);
       SingleDecl = ParseExportDeclaration();
       break;
     }
@@ -2284,7 +2300,7 @@ void Parser::ParseMicrosoftIfExistsExternalDeclaration() {
 ///            attribute-specifier-seq[opt] ';'
 ///   private-module-fragment: [C++2a]
 ///     'module' ':' 'private' ';' top-level-declaration-seq[opt]
-Parser::DeclGroupPtrTy Parser::ParseModuleDecl(bool IsFirstDecl) {
+Parser::DeclGroupPtrTy Parser::ParseModuleDecl(Sema::ModuleImportState &ImportState) {
   SourceLocation StartLoc = Tok.getLocation();
 
   Sema::ModuleDeclKind MDK = TryConsumeToken(tok::kw_export)
@@ -2304,7 +2320,7 @@ Parser::DeclGroupPtrTy Parser::ParseModuleDecl(bool IsFirstDecl) {
   // Parse a global-module-fragment, if present.
   if (getLangOpts().CPlusPlusModules && Tok.is(tok::semi)) {
     SourceLocation SemiLoc = ConsumeToken();
-    if (!IsFirstDecl) {
+    if (ImportState != Sema::ModuleImportState::FirstDecl) {
       Diag(StartLoc, diag::err_global_module_introducer_not_at_start)
         << SourceRange(StartLoc, SemiLoc);
       return nullptr;
@@ -2313,6 +2329,7 @@ Parser::DeclGroupPtrTy Parser::ParseModuleDecl(bool IsFirstDecl) {
       Diag(StartLoc, diag::err_module_fragment_exported)
         << /*global*/0 << FixItHint::CreateRemoval(StartLoc);
     }
+    ImportState = Sema::ModuleImportState::GlobalFragment;
     return Actions.ActOnGlobalModuleFragmentDecl(ModuleLoc);
   }
 
@@ -2327,6 +2344,7 @@ Parser::DeclGroupPtrTy Parser::ParseModuleDecl(bool IsFirstDecl) {
     SourceLocation PrivateLoc = ConsumeToken();
     DiagnoseAndSkipCXX11Attributes();
     ExpectAndConsumeSemi(diag::err_private_module_fragment_expected_semi);
+    ImportState = Sema::ModuleImportState::PrivateFragment;
     return Actions.ActOnPrivateModuleFragmentDecl(ModuleLoc, PrivateLoc);
   }
 
@@ -2354,7 +2372,7 @@ Parser::DeclGroupPtrTy Parser::ParseModuleDecl(bool IsFirstDecl) {
   ExpectAndConsumeSemi(diag::err_module_expected_semi);
 
   return Actions.ActOnModuleDecl(StartLoc, ModuleLoc, MDK, Path,
-                                 Partition, IsFirstDecl);
+                                 Partition, ImportState);
 }
 
 /// Parse a module import declaration. This is essentially the same for
@@ -2372,7 +2390,8 @@ Parser::DeclGroupPtrTy Parser::ParseModuleDecl(bool IsFirstDecl) {
 ///                   attribute-specifier-seq[opt] ';'
 ///           'export'[opt] 'import' header-name
 ///                   attribute-specifier-seq[opt] ';'
-Decl *Parser::ParseModuleImport(SourceLocation AtLoc) {
+Decl *Parser::ParseModuleImport(SourceLocation AtLoc,
+                                Sema::ModuleImportState &ImportState) {
   SourceLocation StartLoc = AtLoc.isInvalid() ? Tok.getLocation() : AtLoc;
 
   SourceLocation ExportLoc;
@@ -2384,11 +2403,11 @@ Decl *Parser::ParseModuleImport(SourceLocation AtLoc) {
   bool IsObjCAtImport = Tok.isObjCAtKeyword(tok::objc_import);
   SourceLocation ImportLoc = ConsumeToken();
 
+  // For a C++20 module partition, the NamePath will be empty.
+  // Otherwise the Partition will be empty.
   SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> NamePath;
   SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Partition;
   Module *HeaderUnit = nullptr;
-  bool IsPartition = false;
-
   if (Tok.is(tok::header_name)) {
     // This is a header import that the preprocessor decided we should skip
     // because it was malformed in some way. Parse and ignore it; it's already
@@ -2407,7 +2426,6 @@ Decl *Parser::ParseModuleImport(SourceLocation AtLoc) {
       return nullptr;
     } else if (Err)
       return nullptr;
-    IsPartition = true;
   } else {
     if (ParseModuleName(ImportLoc, NamePath, /*IsImport*/true))
       return nullptr;
@@ -2421,6 +2439,44 @@ Decl *Parser::ParseModuleImport(SourceLocation AtLoc) {
   if (PP.hadModuleLoaderFatalFailure()) {
     // With a fatal failure in the module loader, we abort parsing.
     cutOffParsing();
+    return nullptr;
+  }
+
+  // Diagnose mis-imports.
+  bool SeenError = true;
+  bool HasPart = !Partition.empty();
+  switch (ImportState) {
+    case Sema::ModuleImportState::ImportAllowed:
+      SeenError = false;
+      break;
+    case Sema::ModuleImportState::FirstDecl:
+    case Sema::ModuleImportState::NotACXX20Module:
+      // We can only import a partition within a module purview.
+      if (HasPart)
+        Diag(ImportLoc, diag::err_partition_import_outside_module);
+      else
+        SeenError = false;
+      break;
+    case Sema::ModuleImportState::GlobalFragment:
+      // We can only have pre-processor directives in the global module
+      // fragment
+      if(!HeaderUnit)
+        Diag(ImportLoc, diag::err_import_in_global_fragment) << HasPart;
+      else
+        SeenError = false;
+      break;
+    case Sema::ModuleImportState::ImportFinished:
+      if(getLangOpts().CPlusPlusModules)
+        Diag(ImportLoc, diag::err_import_not_allowed_here);
+      else
+        SeenError = false;
+      break;
+    case Sema::ModuleImportState::PrivateFragment:
+      Diag(ImportLoc, diag::err_import_in_private_fragment) << HasPart;
+      break;
+  }
+  if (SeenError) {
+    ExpectAndConsumeSemi(diag::err_module_expected_semi);
     return nullptr;
   }
 
