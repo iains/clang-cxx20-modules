@@ -422,7 +422,8 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
       ModuleScopes.back().Module == Mod) {
     Diag(ImportLoc, diag::err_module_self_import_cxx20)
          << Mod->getFullModuleName()
-         << !ModuleScopes.back().ModuleInterface;
+         << !ModuleScopes.back().ModuleInterface
+         << SourceRange(ImportLoc, NamePath.back().second);
   }
 
   // In some cases we need to know if an entity was present in a directly-
