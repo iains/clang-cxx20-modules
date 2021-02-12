@@ -480,11 +480,19 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
     Context.addModuleInitializer(ModuleScopes.back().Module, Import);
 
   // Re-export the module if needed.
-  if (!ModuleScopes.empty() && ModuleScopes.back().ModuleInterface) {
+  // C++20
+  // A module (partition) implementation unit shall not be exported.
+  if (getLangOpts().CPlusPlusModules && Mod && ExportLoc.isValid() &&
+      Mod->Kind == Module::ModuleKind::ModulePartitionImplementation) {
+    Diag(ExportLoc, diag::err_export_partition_impl)
+    << SourceRange(ExportLoc, NamePath.back().second);
+  } else if (!ModuleScopes.empty() && ModuleScopes.back().ModuleInterface) {
     if (ExportLoc.isValid() || getEnclosingExportDecl(Import))
       getCurrentModule()->Exports.emplace_back(Mod, false);
   } else if (ExportLoc.isValid()) {
-    Diag(ExportLoc, diag::err_export_not_in_module_interface);
+    Diag(ExportLoc, diag::err_export_not_in_module_interface)
+         << !ModuleScopes.empty() &&
+            !ModuleScopes.back().ImplicitGlobalModuleFragment;
   } else if (getLangOpts().isCompilingModule()) {
     Module *ThisModule = PP.getHeaderSearchInfo()
                            .lookupModule(getLangOpts().CurrentModule,
