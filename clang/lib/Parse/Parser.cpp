@@ -2392,14 +2392,14 @@ Parser::DeclGroupPtrTy Parser::ParseModuleDecl(Sema::ModuleImportState &ImportSt
 }
 
 /// Parse a module import declaration. This is essentially the same for
-/// Objective-C and the C++ Modules TS, except for the leading '@' (in ObjC)
+/// Objective-C and the C++20/Modules TS, except for the leading '@' (in ObjC)
 /// and the trailing optional attributes (in C++).
 ///
 /// [ObjC]  @import declaration:
 ///           '@' 'import' module-name ';'
 /// [ModTS] module-import-declaration:
 ///           'import' module-name attribute-specifier-seq[opt] ';'
-/// [C++2a] module-import-declaration:
+/// [C++20] module-import-declaration:
 ///           'export'[opt] 'import' module-name
 ///                   attribute-specifier-seq[opt] ';'
 ///           'export'[opt] 'import' module-partition
