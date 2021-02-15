@@ -3182,7 +3182,7 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
   Opts.HexFloats = Std.hasHexFloats();
   Opts.ImplicitInt = Std.hasImplicitInt();
 
-  Opts.CPlusPlusModules = Opts.CPlusPlus20;
+  Opts.CPlusPlusModules = (Opts.CPlusPlus20 || Opts.CPlusPlus2b);
 
   // Set OpenCL Version.
   Opts.OpenCL = Std.isOpenCL();
