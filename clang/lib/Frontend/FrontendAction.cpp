@@ -208,7 +208,6 @@ FrontendAction::CreateWrappedASTConsumer(CompilerInstance &CI,
     // statement).
     std::string XOut
       = llvm::sys::path::parent_path(CI.getFrontendOpts().OutputFile).str();
-    llvm::dbgs() << "OutputPath: " << XOut << "\n";
     std::string XIn = llvm::sys::path::filename(InFile).str();
     if (!XOut.empty()) {
       XOut += llvm::sys::path::get_separator();
@@ -219,23 +218,8 @@ FrontendAction::CreateWrappedASTConsumer(CompilerInstance &CI,
     SmallString<128> Path(XOut);
     llvm::sys::path::replace_extension(Path, "pcm");
     XOut = std::string(Path.str());
-    llvm::dbgs() << "Xout : " << XOut << "\n";
 
-#if 0 
-    std::string Actual;
-    std::string Temp;
-    std::error_code Err;
-    std::unique_ptr<raw_pwrite_stream> OS
-       = CI.createOutputFile(
-     XOut, Err, /*Binary=*/true, /*RemoveFileOnSignal*/true,
-     InFile, "pcm", /*UseTemporary*/false, /*CreateMissingDirectories*/false,
-     &Actual, &Temp);
-    if (!OS)
-      llvm::dbgs() << " No luck with rabbits\n";
-    llvm::dbgs() << "Actual : " << Actual << "\n";
-#else
     std::unique_ptr<raw_pwrite_stream> OS;
-#endif
     std::string Sysroot;
     auto Buffer = std::make_shared<PCHBuffer>();
 
