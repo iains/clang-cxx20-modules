@@ -179,7 +179,9 @@ FrontendAction::CreateWrappedASTConsumer(CompilerInstance &CI,
   // Do we want to emit a CMI on demand if the source contains an export.
   // We do this if : C++20 modules, if the input is source, and not a HU
   // and we don't stop at the Preprocessor.
+  // For now, gate this action on the presence of a module mapper invocation.
   bool EmitCMI = CI.getLangOpts().CPlusPlusModules &&
+                 CI.getLangOpts().UseModuleMapper &&
                  IK.getFormat() == InputKind::Format::Source &&
                  !IK.isHeaderUnit() &&
                 (CI.getFrontendOpts().ProgramAction == frontend::EmitObj ||
