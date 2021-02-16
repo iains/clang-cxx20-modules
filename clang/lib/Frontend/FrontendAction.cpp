@@ -187,6 +187,7 @@ FrontendAction::CreateWrappedASTConsumer(CompilerInstance &CI,
                 (CI.getFrontendOpts().ProgramAction == frontend::EmitObj ||
                  CI.getFrontendOpts().ProgramAction == frontend::EmitAssembly ||
                  CI.getFrontendOpts().ProgramAction == frontend::EmitBC ||
+                 CI.getFrontendOpts().ProgramAction == frontend::EmitLLVMOnly ||
                  CI.getFrontendOpts().ProgramAction == frontend::EmitLLVM) &&
                  !this->usesPreprocessorOnly();
 
