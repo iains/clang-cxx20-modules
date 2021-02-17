@@ -204,11 +204,14 @@ FrontendAction::CreateWrappedASTConsumer(CompilerInstance &CI,
   // List of AST consumers for this source.
   std::vector<std::unique_ptr<ASTConsumer>> Consumers;
 
-  // First, add a pair of consumers that will write the AST as a CMI for
+  // First, add a pair of consumers that will write the AST as a CMI for this
+  // module.  ??? : Should any plugins that precede the main consumer also be
+  // run before this.
   if (EmitCMI) {
     // Make a presumed output filename (this would be overwritten by the one
     // derived from the module to CMI mapping determined from any export
-    // statement).
+    // statement).  We do not open this on the output stream, but provide it
+    // as a fallback.
     std::string XOut
       = llvm::sys::path::parent_path(CI.getFrontendOpts().OutputFile).str();
     std::string XIn = llvm::sys::path::filename(InFile).str();
@@ -232,12 +235,12 @@ FrontendAction::CreateWrappedASTConsumer(CompilerInstance &CI,
       CI.getPreprocessor(), CI.getModuleCache(), XOut, Sysroot, Buffer,
       CI.getFrontendOpts().ModuleFileExtensions,
       /*AllowASTWithErrors=*/false,
-      /*IncludeTimestamps=*/+CI.getFrontendOpts().BuildingImplicitModule,
+      /*IncludeTimestamps=*/false,
       /*ShouldCacheASTInMemory=*/true,
       /*IsForCMI=*/true));
 
-    // This writes the CMI (if required), but does not open any file unless
-    // it's required.
+    // This writes the CMI (if one is needed), but does not open the output
+    // file unless/until it is required.
     Consumers.push_back(CI.getPCHContainerWriter()
                         .CreatePCHDeferredContainerGenerator(
                         CI, std::string(InFile), XOut, std::move(OS), Buffer));
