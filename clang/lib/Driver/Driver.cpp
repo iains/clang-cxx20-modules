@@ -2306,7 +2306,9 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
             types::ID OldTy = Ty;
             Ty = types::lookupCXXTypeForCType(Ty);
 
-            if (Ty != OldTy)
+            // Do not complain about clang -fmodule-header blah.h
+            if (Ty != OldTy && !(MaybeCXX20ModuleMode && HasHeaderUnitInfo &&
+                                 OldTy == types::TY_CHeader))
               Diag(clang::diag::warn_drv_treating_input_as_cxx)
                   << getTypeName(OldTy) << getTypeName(Ty);
           }
@@ -2334,9 +2336,12 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
         // to defer complaints about existence until the search is executed
         // in the preprocessor.
         // Disambiguate headers that are meant to be header units from those
-        // intended to be precompiled.
+        // intended to be precompiled.  Avoid missing '.h' cases that are 
+        // counted as C headers by default - we know we are in C++ mode and
+        // we do not want to issue a complaint about compiling things in the
+        // wrong mode.
         if ((HasHeaderUnitInfo || MaybeCXX20ModuleMode) &&
-            Ty == types::TY_CXXHeader)
+            (Ty == types::TY_CXXHeader || Ty == types::TY_CHeader))
           {
             switch (ModuleHeaderModeSet) {
               case HeaderMode_User: Ty = types::TY_CXXUHeader; break;
