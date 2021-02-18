@@ -1178,10 +1178,9 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   bool HasFModules = Args.hasArgNoClaim(options::OPT_fmodules);
   bool HasFModuleName = Args.hasArgNoClaim(options::OPT_fmodule_name_EQ);
   const Arg *Std = Args.getLastArgNoClaim(options::OPT_std_EQ);
-  MaybeCXX20ModuleMode =
-      Std && (Std->containsValue("c++2a") || Std->containsValue("c++20") ||
-              Std->containsValue("c++latest")) &&
-      !(HasFModules || HasFModuleName);
+  MaybeCXX20ModuleMode = !(HasFModules || HasFModuleName) &&
+      Std && (Std->containsValue("c++20") || Std->containsValue("c++2b") || 
+              Std->containsValue("c++latest") || Std->containsValue("c++2a"));
 
   // FIXME : maybe throw out conflicting options, probably move all this
   // into a separate fn.
