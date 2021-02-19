@@ -2331,6 +2331,17 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
             Ty = types::TY_ObjCXX;
         }
 
+        // For compatibility with GCC, we allow automatic recognition of C++
+        // source file as module sources for module interface builds, when
+        // there is some indication that this should be done (fmodule-only).
+	if (Args.hasArgNoClaim(options::OPT_fmodule_only) &&
+	    MaybeCXX20ModuleMode) {
+	  if (Ty == types::TY_CXX)
+	    Ty = types::TY_CXXModule;
+	  if (Ty == types::TY_PP_CXX)
+	    Ty = types::TY_PP_CXXModule;
+	}
+
         // If the user has put -fmodule-header={user, system} then we need
         // to defer complaints about existence until the search is executed
         // in the preprocessor.
