@@ -107,6 +107,7 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
   assert((getLangOpts().ModulesTS || getLangOpts().CPlusPlusModules) &&
          "should only have module decl in Modules TS or C++20");
 
+  bool IsPartition = !Partition.empty();
   bool IsFirstDecl = ImportState == ModuleImportState::FirstDecl;
   ImportState = ModuleImportState::ImportAllowed;
   // A module implementation unit requires that we are not compiling a module
@@ -123,8 +124,11 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
 
     // We were asked to compile a module interface unit but this is a module
     // implementation unit. That indicates the 'export' is missing.
-    Diag(ModuleLoc, diag::err_module_interface_implementation_mismatch)
-      << FixItHint::CreateInsertion(ModuleLoc, "export ");
+    // Module implementation partitions are the exception to this - they produce
+    // an interface for an implementation TU.
+    if (!IsPartition)
+      Diag(ModuleLoc, diag::err_module_interface_implementation_mismatch)
+        << FixItHint::CreateInsertion(ModuleLoc, "export ");
     MDK = ModuleDeclKind::Interface;
     break;
 
@@ -176,7 +180,6 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
   // modules, the dots here are just another character that can appear in a
   // module name.
   std::string ModuleName = stringFromPath(NamePath);
-  bool IsPartition = !Partition.empty();
   if (IsPartition) {
     ModuleName += ":";
     ModuleName += stringFromPath(Partition);
