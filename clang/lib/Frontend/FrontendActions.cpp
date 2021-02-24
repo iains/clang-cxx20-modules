@@ -161,9 +161,19 @@ bool GeneratePCHAction::BeginSourceFileAction(CompilerInstance &CI) {
 std::unique_ptr<ASTConsumer>
 GenerateModuleAction::CreateASTConsumer(CompilerInstance &CI,
                                         StringRef InFile) {
-  std::unique_ptr<raw_pwrite_stream> OS = CreateOutputFile(CI, InFile);
-  if (!OS)
-    return nullptr;
+  auto LO = CI.getLangOpts();
+  bool ShouldUseMapper = LO.UseModuleMapper &&
+                         LO.getCompilingModule() ==
+                            LangOptions::CMK_ModuleInterface;
+
+  std::unique_ptr<raw_pwrite_stream> OS;
+  if (ShouldUseMapper) {
+    ;
+  } else {
+    OS = CreateOutputFile(CI, InFile);
+    if (!OS)
+      return nullptr;
+  }
 
   std::string OutputFile = CI.getFrontendOpts().OutputFile;
   std::string Sysroot;
@@ -171,7 +181,20 @@ GenerateModuleAction::CreateASTConsumer(CompilerInstance &CI,
   auto Buffer = std::make_shared<PCHBuffer>();
   std::vector<std::unique_ptr<ASTConsumer>> Consumers;
 
-  Consumers.push_back(std::make_unique<PCHGenerator>(
+  if (ShouldUseMapper) {
+    Consumers.push_back(std::make_unique<PCHGenerator>(
+      CI.getPreprocessor(), CI.getModuleCache(), OutputFile, Sysroot, Buffer,
+      CI.getFrontendOpts().ModuleFileExtensions,
+      /*AllowASTWithErrors=*/false,
+      /*IncludeTimestamps=*/false,
+      /*ShouldCacheASTInMemory=*/false,
+      /*IsForCMI=*/true));
+    Consumers.push_back(CI.getPCHContainerWriter()
+                        .CreatePCHDeferredContainerGenerator(
+                        CI, std::string(InFile), OutputFile,
+                        std::move(OS), Buffer));
+  } else {
+    Consumers.push_back(std::make_unique<PCHGenerator>(
       CI.getPreprocessor(), CI.getModuleCache(), OutputFile, Sysroot, Buffer,
       CI.getFrontendOpts().ModuleFileExtensions,
       /*AllowASTWithErrors=*/
@@ -180,8 +203,9 @@ GenerateModuleAction::CreateASTConsumer(CompilerInstance &CI,
       +CI.getFrontendOpts().BuildingImplicitModule,
       /*ShouldCacheASTInMemory=*/
       +CI.getFrontendOpts().BuildingImplicitModule));
-  Consumers.push_back(CI.getPCHContainerWriter().CreatePCHContainerGenerator(
+    Consumers.push_back(CI.getPCHContainerWriter().CreatePCHContainerGenerator(
       CI, std::string(InFile), OutputFile, std::move(OS), Buffer));
+  }
   return std::make_unique<MultiplexConsumer>(std::move(Consumers));
 }
 
