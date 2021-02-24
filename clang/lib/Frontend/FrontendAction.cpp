@@ -236,7 +236,7 @@ FrontendAction::CreateWrappedASTConsumer(CompilerInstance &CI,
       CI.getFrontendOpts().ModuleFileExtensions,
       /*AllowASTWithErrors=*/false,
       /*IncludeTimestamps=*/false,
-      /*ShouldCacheASTInMemory=*/true,
+      /*ShouldCacheASTInMemory=*/false,
       /*IsForCMI=*/true));
 
     // This writes the CMI (if one is needed), but does not open the output
