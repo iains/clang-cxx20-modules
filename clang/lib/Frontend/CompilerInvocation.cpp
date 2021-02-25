@@ -2766,8 +2766,10 @@ static bool ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
     // one
     if (IsHeaderFile)
       DashX = DashX.getHeader();
-    else if (HUK != InputKind::HeaderUnit_None)
+    else if (HUK != InputKind::HeaderUnit_None) {
       DashX = DashX.withHeaderUnit(HUK);
+      IsHeaderFile = true;
+    }
     if (ModuleMap)
       DashX = DashX.withFormat(InputKind::ModuleMap);
   }
