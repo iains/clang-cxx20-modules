@@ -904,8 +904,15 @@ Parser::ParseExternalDeclaration(ParsedAttributesWithRange &attrs,
         CurParsedObjCImpl ? Sema::PCC_ObjCImplementation : Sema::PCC_Namespace);
     return nullptr;
   case tok::kw_import:
-    llvm::dbgs() << "attributes not allowed here";
-    return nullptr;
+    {
+      Sema::ModuleImportState IS = Sema::ModuleImportState::NotACXX20Module;
+      if (getLangOpts().CPlusPlusModules) {
+        assert (0 && "was not expecting a valid c++20 import here");
+        ProhibitAttributes(attrs);
+      }
+      SingleDecl = ParseModuleImport(SourceLocation(), IS);
+    }
+    break;
   case tok::kw_export:
     if (getLangOpts().CPlusPlusModules || getLangOpts().ModulesTS) {
       ProhibitAttributes(attrs);
