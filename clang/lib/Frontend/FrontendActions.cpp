@@ -418,6 +418,9 @@ bool GenerateHeaderUnitAction::BeginSourceFileAction(
     Mapper->ModuleExport(CanonicalHUName);
     auto Response = Mapper->Uncork();
     if (Response[0].GetCode () == Cody::Client::PC_PATHNAME)
+      // FIXME: check that any file path provided on the command line matches
+      // the one returned by the mapper (i.e. either use one or the other or
+      // they should agree).
       CI.getFrontendOpts().OutputFile =
         Mapper->maybeAddRepoPrefix(Response[0].GetString());
     else {
