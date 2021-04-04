@@ -2189,6 +2189,10 @@ public:
     return Entity->getOwningModule();
   }
 
+  bool isModuleDirectlyImported(const Module *M) {
+    return DirectModuleImports.contains(M);
+  }
+
   /// Make a merged definition of an existing hidden definition \p ND
   /// visible at the specified location.
   void makeMergedDefinitionVisible(NamedDecl *ND);

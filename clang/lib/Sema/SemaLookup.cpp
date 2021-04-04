@@ -1685,8 +1685,15 @@ bool LookupResult::isVisibleSlow(Sema &SemaRef, NamedDecl *D) {
   Module *DeclModule = SemaRef.getOwningModule(D);
   assert(DeclModule && "hidden decl has no owning module");
 
-  // If the owning module is visible, the decl is visible.
-  if (SemaRef.isModuleVisible(DeclModule, D->isModulePrivate()))
+  if (DeclModule->Kind == Module::ModuleKind::ModulePartitionImplementation) {
+    // Unless a partition implementation is directly imported it is not
+    // counted as visible for lookup, although the contained decls might still
+    // be reachable.
+    if (SemaRef.isModuleDirectlyImported(DeclModule) &&
+        SemaRef.isModuleVisible(DeclModule, D->isModulePrivate()))
+      return true;
+  } else if (SemaRef.isModuleVisible(DeclModule, D->isModulePrivate()))
+    // If the owning module is visible, the decl is visible.
     return true;
 
   // Determine whether a decl context is a file context for the purpose of
