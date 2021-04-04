@@ -11,9 +11,8 @@
 // RUN: %clang_cc1 -std=c++20 -emit-module-interface -D TU=3 -x c++ %s \
 // RUN:   -o %t/B_X1.pcm -verify
 
-// Not expected to work yet.
-//  %clang_cc1 -std=c++20 -emit-module-interface -D TU=4 -x c++ %s \
-//   -fmodule-file=%t/B.pcm  -o %t/B_X2.pcm
+// RUN:  %clang_cc1 -std=c++20 -emit-module-interface -D TU=4 -x c++ %s \
+// RUN:   -fmodule-file=%t/B.pcm  -o %t/B_X2.pcm
 
 // RUN: %clang_cc1 -std=c++20 -emit-obj -D TU=5 -x c++ %s \
 // RUN:  -fmodule-file=%t/B.pcm  -o %t/b_tu5.s
@@ -21,9 +20,8 @@
 // RUN: %clang_cc1 -std=c++20 -S -D TU=6 -x c++ %s \
 // RUN:  -fmodule-file=%t/B.pcm  -o %t/b_tu6.s -verify
 
-// Not expected to work yet.
-//  %clang_cc1 -std=c++20 -emit-module-interface -D TU=7 -x c++ %s \
-//   -fmodule-file=%t/B_X2.pcm  -o %t/B_X3.pcm -verify
+// RUN:  %clang_cc1 -std=c++20 -emit-module-interface -D TU=7 -x c++ %s \
+// RUN: -fmodule-file=%t/B_X2.pcm  -o %t/B_X3.pcm -verify
 
 #if TU == 1
   module B:Y;
