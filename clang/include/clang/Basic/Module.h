@@ -516,6 +516,15 @@ public:
     return Name.find(':') != std::string::npos;
   }
 
+  /// Get the primary module interface name from a partition.
+
+  std::string getPrimaryModuleInterfaceName() const {
+    std::string::size_type pos = Name.find(':');
+    if (pos == std::string::npos)
+      return Name;
+    return Name.substr(0, pos);
+  }
+
   /// Retrieve the full name of this module, including the path from
   /// its top-level module.
   /// \param AllowStringLiterals If \c true, components that might not be
