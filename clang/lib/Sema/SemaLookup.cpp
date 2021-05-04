@@ -1683,7 +1683,12 @@ bool LookupResult::isVisibleSlow(Sema &SemaRef, NamedDecl *D) {
          "should not call this: not in slow case");
 
   Module *DeclModule = SemaRef.getOwningModule(D);
-  assert(DeclModule && "hidden decl has no owning module");
+  // This can happen is we have 'export namespace X {};' outside a module
+  // and then we refer to it.  The following permits more graceful error
+  // recovery.
+  //assert(DeclModule && "hidden decl has no owning module");
+  if (!DeclModule)
+    return false;
 
   if (SemaRef.isModuleVisible(DeclModule, D->isModulePrivate()))
     // If the owning module is visible, the decl is visible.
@@ -5355,6 +5360,8 @@ void Sema::diagnoseMissingImport(SourceLocation Loc, NamedDecl *Decl,
     Def = Decl;
 
   Module *Owner = getOwningModule(Def);
+  if (!Owner && Recover)
+    return; // This can happen if we have missing module lines.
   assert(Owner && "definition of hidden declaration is not in a module");
 
   llvm::SmallVector<Module*, 8> OwningModules;
