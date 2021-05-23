@@ -10890,7 +10890,8 @@ def err_export_within_export : Error<
 def err_export_internal : Error<
   "declaration of %0 with internal linkage cannot be exported">;
 def err_export_using_internal : Error<
-  "using declaration referring to %0 with internal linkage cannot be exported">;
+  "using declaration referring to %1 with %select{internal|module|unknown}0 "
+  "linkage cannot be exported">;
 def err_export_not_in_module_interface : Error<
   "export declaration can only be used within a module interface unit"
   "%select{ after the module declaration|}0">;

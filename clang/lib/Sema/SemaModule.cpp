@@ -795,8 +795,10 @@ static bool checkExportedDecl(Sema &S, Decl *D, SourceLocation BlockStart) {
   //   shall have been introduced with a name having external linkage
   if (auto *USD = dyn_cast<UsingShadowDecl>(D)) {
     NamedDecl *Target = USD->getUnderlyingDecl();
-    if (Target->getFormalLinkage() == InternalLinkage) {
-      S.Diag(USD->getLocation(), diag::err_export_using_internal) << Target;
+    Linkage Lk = Target->getFormalLinkage();
+    if (Lk == InternalLinkage || Lk == ModuleLinkage) {
+      S.Diag(USD->getLocation(), diag::err_export_using_internal)
+      << (Lk == InternalLinkage ? 0 : 1) << Target;
       S.Diag(Target->getLocation(), diag::note_using_decl_target);
       if (BlockStart.isValid())
         S.Diag(BlockStart, diag::note_export);
