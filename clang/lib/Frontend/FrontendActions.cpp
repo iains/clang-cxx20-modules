@@ -429,8 +429,8 @@ bool GenerateHeaderUnitAction::BeginSourceFileAction(
   // that it can be used with '-fmodule-name='.  Make the module name be the
   // pathname for the header. ??? Seemed an idea, but is this useful?
 
-  Module::Header H{HeaderName, HeaderName, &FE->getFileEntry()};
-  HS.getModuleMap().createHeaderUnit(CI.getLangOpts().CurrentModule, H);
+  //Module::Header H{HeaderName, HeaderName, &FE->getFileEntry()};
+  //HS.getModuleMap().createHeaderUnit(CI.getLangOpts().CurrentModule, H);
 
   // Notify the module mapper (if there is one) that we're about to build
   // and exporting module and fetch the output filename.

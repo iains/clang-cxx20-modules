@@ -385,8 +385,13 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
     NamePath = ModuleIdPath(ModuleNameLoc);
   }
 
-  Module::NameVisibilityKind Vis = IsPartition ? Module::Hidden
-                                               : Module::AllVisible;
+  Module::NameVisibilityKind Vis = Module::AllVisible;
+  if (!ModuleScopes.empty() &&
+      ModuleScopes.back().Module->Kind == Module::GlobalModuleFragment)
+    Vis = Module::Hidden;
+
+  Vis = IsPartition ? Module::Hidden : Vis;
+
   Module *Mod =
       getModuleLoader().loadModule(ImportLoc,
                                    IsPartition ? Partition : NamePath,
@@ -410,6 +415,10 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
                                    SourceLocation ExportLoc,
                                    SourceLocation ImportLoc,
                                    Module *Mod, ModuleIdPath NamePath) {
+
+  bool InGMF = !ModuleScopes.empty() &&
+       ModuleScopes.back().Module->Kind == Module::GlobalModuleFragment;
+
   VisibleModules.setVisible(Mod, ImportLoc);
 
   checkModuleImportContext(*this, Mod, ImportLoc, CurContext);
@@ -431,7 +440,18 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
 
   // In some cases we need to know if an entity was present in a directly-
   // imported module (as opposed to a transitive import).
+  
   DirectModuleImports.insert(Mod);
+  if (Mod->Kind == Module::ModuleKind::ModuleHeaderUnit) {
+    Module *Sub = Mod->findSubmodule("<global>");
+    assert (Sub && Sub->Kind == Module::GlobalModuleFragment &&
+            "Header unit with no GMF?");
+    for (auto M : Sub->Imports) {
+      if (M->Kind == Module::ModuleKind::ModuleHeaderUnit &&
+          !DirectModuleImports.contains(M))
+        DirectModuleImports.insert(M);
+    }
+  }
 
   // FIXME: we should support importing a submodule within a different submodule
   // of the same top-level module. Until we do, make it an error rather than
@@ -474,9 +494,19 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
     }
   }
 
-  ImportDecl *Import = ImportDecl::Create(Context, CurContext, StartLoc,
-                                          Mod, IdentifierLocs);
-  CurContext->addDecl(Import);
+  ImportDecl *Import;
+  if (InGMF) {
+    // Track translated includes ownership in header units and interfaces.
+    auto *TU = Context.getTranslationUnitDecl();
+    Import = ImportDecl::Create(Context, TU, StartLoc, Mod, IdentifierLocs);
+    Import->setLocalOwningModule(ModuleScopes.back().Module);
+    Import->setModuleOwnershipKind(Decl::ModuleOwnershipKind::Visible);
+    TU->addDecl(Import);
+  } else {
+    Import = ImportDecl::Create(Context, CurContext, StartLoc, Mod,
+                                IdentifierLocs);
+    CurContext->addDecl(Import);
+  }
 
   // Sequence initialization of the imported module before that of the current
   // module, if any.
@@ -497,6 +527,12 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
     Diag(ExportLoc, diag::err_export_not_in_module_interface)
          << !ModuleScopes.empty() &&
             !ModuleScopes.back().ImplicitGlobalModuleFragment;
+  } else if (InGMF && (Mod->Kind == Module::ModuleKind::ModuleHeaderUnit ||
+                       Mod->Kind == Module::ModuleKind::ModuleInterfaceUnit)) {
+    // Header units have a single global fragment, but that can contain
+    // imports.
+    if (!ModuleScopes.back().Module->Imports.contains(Mod))
+        ModuleScopes.back().Module->Imports.insert(Mod);
   } else if (getLangOpts().isCompilingModule()) {
     Module *ThisModule = PP.getHeaderSearchInfo()
                            .lookupModule(getLangOpts().CurrentModule,

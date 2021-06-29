@@ -838,6 +838,7 @@ Module *ModuleMap::createGlobalModuleFragmentForModuleUnit(SourceLocation Loc) {
       new Module("<global>", Loc, nullptr, /*IsFramework*/ false,
                  /*IsExplicit*/ true, NumCreatedModules++));
   PendingSubmodules.back()->Kind = Module::GlobalModuleFragment;
+  //PendingSubmodules.back()->NameVisibility = Module::AllVisible;
   return PendingSubmodules.back().get();
 }
 
@@ -912,6 +913,15 @@ Module *ModuleMap::createHeaderUnit(StringRef Name, Module::Header H) {
   Result->Kind = Module::ModuleHeaderUnit;
   Result->Exports.push_back(Module::ExportDecl(nullptr, true));
   Modules[Name] = SourceModule = Result;
+
+  // Reparent the global module fragment as a submodule of this module.
+  // The only content of the module should be here.
+  for (auto &Submodule : PendingSubmodules) {
+    Submodule->setParent(Result);
+    Submodule.release(); // now owned by parent
+  }
+  PendingSubmodules.clear();
+
   addHeader(Result, H, NormalHeader);
   return Result;
 }

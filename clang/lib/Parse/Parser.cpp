@@ -663,16 +663,20 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
   }
 
   case tok::annot_header_unit:
-    Actions.ActOnModuleInclude(Tok.getLocation(), reinterpret_cast<Module *>(Tok.getAnnotationValue()));
+  case tok::annot_module_include: {
+    auto Loc = Tok.getLocation();
+    Module *Mod = reinterpret_cast<Module *>(Tok.getAnnotationValue());
+    if (!getLangOpts().CPlusPlusModules || getLangOpts().ModulesTS)
+      Actions.ActOnModuleInclude(Loc, Mod);
+    else {
+      DeclResult Import =
+        Actions.ActOnModuleImport(Loc, SourceLocation(), Loc, Mod);
+      Decl *ImportDecl = Import.isInvalid() ? nullptr : Import.get();
+      Result = Actions.ConvertDeclToDeclGroup(ImportDecl);
+    }
     ConsumeAnnotationToken();
     return false;
-
-  case tok::annot_module_include:
-    Actions.ActOnModuleInclude(Tok.getLocation(),
-                               reinterpret_cast<Module *>(
-                                   Tok.getAnnotationValue()));
-    ConsumeAnnotationToken();
-    return false;
+  }
 
   case tok::annot_module_begin:
     Actions.ActOnModuleBegin(Tok.getLocation(), reinterpret_cast<Module *>(
@@ -2335,7 +2339,7 @@ Parser::DeclGroupPtrTy Parser::ParseModuleDecl(Sema::ModuleImportState &ImportSt
 
   // Parse a global-module-fragment, if present.
   if (getLangOpts().CPlusPlusModules && Tok.is(tok::semi)) {
-    SourceLocation SemiLoc = ConsumeToken();
+    SourceLocation SemiLoc = Tok.getLocation();
     if (ImportState != Sema::ModuleImportState::FirstDecl) {
       Diag(StartLoc, diag::err_global_module_introducer_not_at_start)
         << SourceRange(StartLoc, SemiLoc);
@@ -2346,7 +2350,9 @@ Parser::DeclGroupPtrTy Parser::ParseModuleDecl(Sema::ModuleImportState &ImportSt
         << /*global*/0 << FixItHint::CreateRemoval(StartLoc);
     }
     ImportState = Sema::ModuleImportState::GlobalFragment;
-    return Actions.ActOnGlobalModuleFragmentDecl(ModuleLoc);
+    auto Res = Actions.ActOnGlobalModuleFragmentDecl(ModuleLoc);
+    ConsumeToken();
+    return Res;
   }
 
   // Parse a private-module-fragment, if present.

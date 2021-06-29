@@ -961,6 +961,13 @@ void Sema::ActOnStartOfTranslationUnit() {
         SourceMgr.getLocForStartOfFile(SourceMgr.getMainFileID());
     ActOnGlobalModuleFragmentDecl(StartOfTU);
     ModuleScopes.back().ImplicitGlobalModuleFragment = true;
+  } else if (getLangOpts().CPlusPlusModules &&
+             getLangOpts().getCompilingModule() == LangOptions::CMK_HeaderUnit) {
+    // Everything in a header unit is in the global module (and exported)
+    SourceLocation StartOfTU =
+        SourceMgr.getLocForStartOfFile(SourceMgr.getMainFileID());
+    ActOnGlobalModuleFragmentDecl(StartOfTU);
+    ModuleScopes.back().ImplicitGlobalModuleFragment = true;
   }
 }
 
@@ -1046,6 +1053,35 @@ void Sema::ActOnEndOfTranslationUnit() {
   if (TUKind != TU_Prefix) {
     DiagnoseUseOfUnimplementedSelectors();
 
+    // We have built a header unit.  All the content is in a single implicit
+    // global module fragment.  We now parent that fragment onto an otherwise
+    // empty module named for the header unit.  The pairing added to the
+    // module map.
+    if (!ModuleScopes.empty() &&
+        getLangOpts().getCompilingModule() == LangOptions::CMK_HeaderUnit &&
+        ModuleScopes.back().ImplicitGlobalModuleFragment) {
+      SourceLocation Loc = ModuleScopes.back().BeginLoc;
+      auto &Map = PP.getHeaderSearchInfo().getModuleMap();
+      const FileEntry *F = SourceMgr.getFileEntryForID (SourceMgr.getMainFileID());
+      std::string HeaderName = getLangOpts().ModuleName;
+      assert(HeaderName == getLangOpts().CurrentModule && "hmmm too many names");
+      Module::Header H{HeaderName, HeaderName, F};
+      Module *Mod = Map.createHeaderUnit(HeaderName, H);
+      ActOnEndOfTranslationUnitFragment(TUFragmentKind::Global);
+      // Switch from the global module fragment (if any) to the named module.
+      ModuleScopes.back().BeginLoc = Loc;
+      ModuleScopes.back().Module = Mod;
+      ModuleScopes.back().ModuleInterface = true;
+      ModuleScopes.back().IsPartition = false;
+      VisibleModules.setVisible(Mod, Loc);
+
+      // From now on, we have an owning module for all declarations we see.
+      // Everything in the Global Module starts out visible, we have to control
+      // eventual visibility via inclusion path checks.
+      auto *TU = Context.getTranslationUnitDecl();
+      TU->setModuleOwnershipKind(Decl::ModuleOwnershipKind::Visible);
+      TU->setLocalOwningModule(Mod);
+    }
     ActOnEndOfTranslationUnitFragment(
         !ModuleScopes.empty() && ModuleScopes.back().Module->Kind ==
                                      Module::PrivateModuleFragment
