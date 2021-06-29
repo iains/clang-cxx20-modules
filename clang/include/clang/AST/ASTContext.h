@@ -1022,6 +1022,11 @@ public:
   /// Get the initializations to perform when importing a module, if any.
   ArrayRef<Decl*> getModuleInitializers(Module *M);
 
+  /// Remove a declaration from the list of declarations that are initialized
+  /// for a module. This is done when eliding unused global variables from the
+  /// global module fragment.
+  void removeModuleInitializer(Module *M, Decl *Init);
+
   TranslationUnitDecl *getTranslationUnitDecl() const { return TUDecl; }
 
   ExternCContextDecl *getExternCContextDecl() const;

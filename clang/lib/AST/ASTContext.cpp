@@ -1186,6 +1186,23 @@ ArrayRef<Decl *> ASTContext::getModuleInitializers(Module *M) {
   return Inits->Initializers;
 }
 
+void ASTContext::removeModuleInitializer(Module *M, Decl *D) {
+  auto It = ModuleInitializers.find(M);
+  if (It == ModuleInitializers.end())
+    return;
+
+  auto *Inits = It->second;
+  Inits->resolve(*this); // ??? : is this needed?
+
+  for (auto A = Inits->Initializers.begin();
+       A != Inits->Initializers.end(); ++A) {
+    if (*A != D)
+      continue;
+    Inits->Initializers.erase(A);
+    break;
+  }
+}
+
 ExternCContextDecl *ASTContext::getExternCContextDecl() const {
   if (!ExternCContext)
     ExternCContext = ExternCContextDecl::Create(*this, getTranslationUnitDecl());
