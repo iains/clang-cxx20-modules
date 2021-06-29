@@ -1,51 +1,40 @@
 // RUN: rm -rf %t
 // RUN: mkdir -p %t
-// RUN: echo '#ifndef FOO_H' > %t/foo.h
-// RUN: echo '#define FOO_H' >> %t/foo.h
-// RUN: echo 'extern int in_header;' >> %t/foo.h
-// RUN: echo '#endif' >> %t/foo.h
-// RUN: %clang_cc1 -std=c++2a -I%t -emit-module-interface -DINTERFACE %s -o %t.pcm
-// RUN: %clang_cc1 -std=c++2a -I%t -fmodule-file=%t.pcm -DIMPLEMENTATION %s -verify -fno-modules-error-recovery
-// RUN: %clang_cc1 -std=c++2a -I%t -fmodule-file=%t.pcm %s -verify -fno-modules-error-recovery
+// RUN: %clang_cc1 -std=c++2a -I%S -emit-module-interface -DINTERFACE %s -o %t.pcm
+// RUN: %clang_cc1 -std=c++2a -I%S -fmodule-file=%t.pcm -DIMPLEMENTATION %s -verify -fno-modules-error-recovery
+// RUN: %clang_cc1 -std=c++2a -I%S -fmodule-file=%t.pcm %s -verify -fno-modules-error-recovery
 
 #ifdef INTERFACE
 module;
-#include "foo.h"
-// FIXME: The following need to be moved to a header file. The global module
-// fragment is only permitted to contain preprocessor directives.
-int global_module_fragment;
+// extern int in_header; OK
+#include "p2-h1.h"
+// int global_module_fragment; A violation of ODR
+#include "p2-h2.h"
+
+//inline int fortytwo () { return 42; }
+
 export module A;
+
 export int exported;
 int not_exported;
 static int internal;
 
+#if __clang__
 module :private;
 int not_exported_private;
 static int internal_private;
+#endif
+
 #else
 
 #ifdef IMPLEMENTATION
 module;
 #endif
 
-void test_early() {
-  in_header = 1; // expected-error {{missing '#include "foo.h"'; 'in_header' must be declared before it is used}}
-  // expected-note@*{{not visible}}
-
-  global_module_fragment = 1; // expected-error {{missing '#include'; 'global_module_fragment' must be declared before it is used}}
-  // expected-note@p2.cpp:16 {{not visible}}
-
-  exported = 1; // expected-error {{must be imported from module 'A'}}
-  // expected-note@p2.cpp:18 {{not visible}}
-
-  not_exported = 1; // expected-error {{undeclared identifier}}
-
-  internal = 1; // expected-error {{undeclared identifier}}
-
-  not_exported_private = 1; // expected-error {{undeclared identifier}}
-
-  internal_private = 1; // expected-error {{undeclared identifier}}
-}
+// a function in the GMF attempting to access various vars.
+#include "p2-h3.h"
+//extern int kap;
+//inline int fortytwo () { return 42; }
 
 #ifdef IMPLEMENTATION
 module A;
@@ -54,11 +43,9 @@ import A;
 #endif
 
 void test_late() {
-  in_header = 1; // expected-error {{missing '#include "foo.h"'; 'in_header' must be declared before it is used}}
-  // expected-note@*{{not visible}}
+  in_header = 1; // expected-error {{use of undeclared identifier 'in_header'}}
 
-  global_module_fragment = 1; // expected-error {{missing '#include'; 'global_module_fragment' must be declared before it is used}}
-  // expected-note@p2.cpp:16 {{not visible}}
+  global_module_fragment = 1; // expected-error {{use of undeclared identifier 'global_module_fragment'}}
 
   exported = 1;
 
@@ -70,20 +57,22 @@ void test_late() {
 
   internal = 1;
 #ifndef IMPLEMENTATION
-  // FIXME: should not be visible here
+  // Not visible to non-implementing importer
   // expected-error@-3 {{undeclared identifier}}
 #endif
 
+#if __clang__
   not_exported_private = 1;
-#ifndef IMPLEMENTATION
-  // FIXME: should not be visible here
+# ifndef IMPLEMENTATION
+  // Not visible to non-implementing importer
   // expected-error@-3 {{undeclared identifier}}
-#endif
+# endif
 
   internal_private = 1;
-#ifndef IMPLEMENTATION
-  // FIXME: should not be visible here
+# ifndef IMPLEMENTATION
+  // Not visible to non-implementing importer
   // expected-error@-3 {{undeclared identifier}}
+# endif
 #endif
 }
 
