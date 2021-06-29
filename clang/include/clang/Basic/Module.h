@@ -165,6 +165,11 @@ public:
            Kind == PrivateModuleFragment;
   }
 
+  /// Does this Module scope describe part of the purview of the Global Module?
+  bool isInGlobalModule() const {
+    return Kind == GlobalModuleFragment;
+  }
+
 private:
   /// The submodules of this module, indexed by name.
   std::vector<Module *> SubModules;
