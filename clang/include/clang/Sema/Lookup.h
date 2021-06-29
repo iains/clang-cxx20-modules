@@ -365,6 +365,13 @@ public:
     if (isVisible(getSema(), D) || isHiddenDeclarationVisible(D))
       return D;
 
+    // If this is in a directly-imported header unit it is visible.
+    Module *M = D->getOwningModule();
+    if (M && M->isInGlobalModule() && M->Parent &&
+        M->Parent->Kind == Module::ModuleHeaderUnit &&
+        getSema().isModuleDirectlyImported(M->Parent))
+      return D;
+
     return getAcceptableDeclSlow(D);
   }
 
