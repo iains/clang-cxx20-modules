@@ -1053,6 +1053,33 @@ void Sema::ActOnEndOfTranslationUnit() {
   if (TUKind != TU_Prefix) {
     DiagnoseUseOfUnimplementedSelectors();
 
+    if (!ModuleScopes.empty() && ModuleScopes.back().ModuleInterface) {
+    auto DC = getASTContext().getTranslationUnitDecl();
+    SmallVector<Decl*, 2> Decls;
+    for (DeclContext::decl_iterator DI = DC->decls_begin(), DEnd = DC->decls_end();
+         DI != DEnd; ++DI) {
+      Decl *D = *DI;
+      if (D->isImplicit())
+        continue;
+      if (!isa<NamedDecl>(D))
+        continue;
+      if (!D->getOwningModule() ||
+          !D->getOwningModule()->isInGlobalModule())
+        continue;
+      if (!D->isUsed(false) && !D->isReferenced())
+        Decls.push_back(D);
+    }
+
+    // FIXME: this is horrible, we probably need a different container for
+    // module inits to make the removal less painful.
+    for (auto D : Decls) {
+      //llvm::dbgs() << " removing : "; D->dump();
+      auto Mod = D->getOwningModule();
+      getASTContext().removeModuleInitializer(Mod, D);
+      DC->removeDecl(D);
+    }
+    }
+
     // We have built a header unit.  All the content is in a single implicit
     // global module fragment.  We now parent that fragment onto an otherwise
     // empty module named for the header unit.  The pairing added to the
