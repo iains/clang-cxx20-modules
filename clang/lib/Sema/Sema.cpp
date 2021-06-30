@@ -1106,7 +1106,7 @@ void Sema::ActOnEndOfTranslationUnit() {
       // Everything in the Global Module starts out visible, we have to control
       // eventual visibility via inclusion path checks.
       auto *TU = Context.getTranslationUnitDecl();
-      TU->setModuleOwnershipKind(Decl::ModuleOwnershipKind::Visible);
+      TU->setModuleOwnershipKind(Decl::ModuleOwnershipKind::ModulePrivate);
       TU->setLocalOwningModule(Mod);
     }
     ActOnEndOfTranslationUnitFragment(

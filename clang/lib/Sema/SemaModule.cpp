@@ -443,13 +443,18 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
   
   DirectModuleImports.insert(Mod);
   if (Mod->Kind == Module::ModuleKind::ModuleHeaderUnit) {
-    Module *Sub = Mod->findSubmodule("<global>");
-    assert (Sub && Sub->Kind == Module::GlobalModuleFragment &&
+    Module *HuGMF = Mod->findSubmodule("<global>");
+    assert (HuGMF && HuGMF->Kind == Module::GlobalModuleFragment &&
             "Header unit with no GMF?");
-    for (auto M : Sub->Imports) {
+    // The GMF from this HU is also visible.
+    VisibleModules.setVisible(HuGMF, ImportLoc);
+
+    for (auto M : HuGMF->Imports) {
       if (M->Kind == Module::ModuleKind::ModuleHeaderUnit &&
-          !DirectModuleImports.contains(M))
+          !DirectModuleImports.contains(M)) {
         DirectModuleImports.insert(M);
+        VisibleModules.setVisible(M, ImportLoc);
+      }
     }
   }
 
