@@ -4924,7 +4924,8 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
 
   // The instantiation is visible here, even if it was first declared in an
   // unimported module.
-  Function->setVisibleDespiteOwningModule();
+  if (getLangOpts().ModulesTS)
+    Function->setVisibleDespiteOwningModule();
 
   // Copy the inner loc start from the pattern.
   Function->setInnerLocStart(PatternDecl->getInnerLocStart());
