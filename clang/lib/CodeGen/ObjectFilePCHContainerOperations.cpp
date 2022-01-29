@@ -343,6 +343,16 @@ ObjectFilePCHContainerWriter::CreatePCHContainerGenerator(
       CI, MainFileName, OutputFileName, std::move(OS), Buffer);
 }
 
+std::unique_ptr<ASTConsumer>
+ObjectFilePCHContainerWriter::CreatePCHDeferredContainerGenerator(
+    CompilerInstance &CI, const std::string &MainFileName,
+    const std::string &OutputFileName,
+    std::unique_ptr<llvm::raw_pwrite_stream> OS,
+    std::shared_ptr<PCHBuffer> Buffer) const {
+  assert(0 && "Did not mean to arrive here");
+  return nullptr;
+}
+
 StringRef
 ObjectFilePCHContainerReader::ExtractPCH(llvm::MemoryBufferRef Buffer) const {
   StringRef PCH;

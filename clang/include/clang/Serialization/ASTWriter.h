@@ -760,6 +760,7 @@ class PCHGenerator : public SemaConsumer {
   ASTWriter Writer;
   bool AllowASTWithErrors;
   bool ShouldCacheASTInMemory;
+  bool IsForCMI;
 
 protected:
   ASTWriter &getWriter() { return Writer; }
@@ -772,7 +773,7 @@ public:
                std::shared_ptr<PCHBuffer> Buffer,
                ArrayRef<std::shared_ptr<ModuleFileExtension>> Extensions,
                bool AllowASTWithErrors = false, bool IncludeTimestamps = true,
-               bool ShouldCacheASTInMemory = false);
+               bool ShouldCacheASTInMemory = false, bool IsForCMI = false);
   ~PCHGenerator() override;
 
   void InitializeSema(Sema &S) override { SemaPtr = &S; }
