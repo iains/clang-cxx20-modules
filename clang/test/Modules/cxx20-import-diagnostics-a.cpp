@@ -119,13 +119,13 @@ import B; // expected-error {{module imports cannot be in the private module fra
 
 module B;
 
-import B; // expected-error {{import of module 'B' appears within same top-level module 'B'}}
+import B; // expected-error {{import of module 'B' appears within its own implementation}}
 
 #elif TU == 9
 
 export module B;
 
-import B; // expected-error {{import of module 'B' appears within same top-level module 'B'}}
+import B; // expected-error {{import of module 'B' appears within its own interface}}
 
 #elif TU == 10
 

@@ -396,10 +396,16 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
   }
 
   // Diagnose self-import before attempting a load.
+  // [module.import]/9
+  // A module implementation unit of a module M that is not a module partition
+  // shall not contain a module-import-declaration nominating M.
+  // (for an implementation, the module interface is imported implicitly,
+  //  but that's handled in the module decl code).
+
   if (getLangOpts().CPlusPlusModules && isCurrentModulePurview() &&
       getCurrentModule()->Name == ModuleName) {
-    Diag(ImportLoc, diag::err_module_self_import)
-        << ModuleName << getLangOpts().CurrentModule;
+    Diag(ImportLoc, diag::err_module_self_import_cxx20)
+        << ModuleName << !ModuleScopes.back().ModuleInterface;
     return true;
   }
 
@@ -433,8 +439,7 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
   // of the same top-level module. Until we do, make it an error rather than
   // silently ignoring the import.
   // FIXME: Should we warn on a redundant import of the current module?
-  if (!getLangOpts().CPlusPlusModules &&
-      Mod->getTopLevelModuleName() == getLangOpts().CurrentModule &&
+  if (Mod->getTopLevelModuleName() == getLangOpts().CurrentModule &&
       (getLangOpts().isCompilingModule() || !getLangOpts().ModulesTS)) {
     Diag(ImportLoc, getLangOpts().isCompilingModule()
                         ? diag::err_module_self_import
@@ -475,7 +480,12 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
   if (!ModuleScopes.empty())
     Context.addModuleInitializer(ModuleScopes.back().Module, Import);
 
-  if (!ModuleScopes.empty() && ModuleScopes.back().ModuleInterface) {
+  // A module (partition) implementation unit shall not be exported.
+  if (getLangOpts().CPlusPlusModules && Mod && ExportLoc.isValid() &&
+      Mod->Kind == Module::ModuleKind::ModulePartitionImplementation) {
+    Diag(ExportLoc, diag::err_export_partition_impl)
+        << SourceRange(ExportLoc, NamePath.back().second);
+  } else if (!ModuleScopes.empty() && ModuleScopes.back().ModuleInterface) {
     // Re-export the module if the imported module is exported.
     // Note that we don't need to add re-exported module to Imports field
     // since `Exports` implies the module is imported already.
@@ -487,7 +497,9 @@ DeclResult Sema::ActOnModuleImport(SourceLocation StartLoc,
     // [module.interface]p1:
     // An export-declaration shall inhabit a namespace scope and appear in the
     // purview of a module interface unit.
-    Diag(ExportLoc, diag::err_export_not_in_module_interface) << 0;
+    Diag(ExportLoc, diag::err_export_not_in_module_interface)
+        << (!ModuleScopes.empty() &&
+            !ModuleScopes.back().ImplicitGlobalModuleFragment);
   } else if (getLangOpts().isCompilingModule()) {
     Module *ThisModule = PP.getHeaderSearchInfo().lookupModule(
         getLangOpts().CurrentModule, ExportLoc, false, false);
